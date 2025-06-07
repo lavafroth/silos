@@ -90,8 +90,6 @@ fn main() -> Result<()> {
     let args = Args::parse();
     let prompt = args.prompt.clone();
     let embed = args.build_embed()?;
-    let embeddings = embed.embed(&prompt)?;
-    println!("{embeddings:?}");
 
     let dimension = 768;
 
@@ -100,17 +98,26 @@ fn main() -> Result<()> {
         &hora::index::hnsw_params::HNSWParams::<f32>::default(),
     );
 
-    // index.add(sample, i).unwrap();
-    index.build(hora::core::metrics::Metric::Euclidean).unwrap();
+    let strings = ["lol"];
 
-    //     let mut rng = thread_rng();
-    //     let target: usize = rng.gen_range(0..n);
-    //     // 523 has neighbors: [523, 762, 364, 268, 561, 231, 380, 817, 331, 246]
-    //     println!(
-    //         "{:?} has neighbors: {:?}",
-    //         target,
-    //         index.search(&samples[target], 10) // search for k nearest neighbors
-    //     );
+    for (i, s) in strings.iter().enumerate() {
+        index.add(&embed.embed(s)?, i).map_err(E::msg)?;
+    }
+    index
+        .build(hora::core::metrics::Metric::Euclidean)
+        .map_err(E::msg)?;
+
+    let target = embed.embed(&prompt)?;
+
+    let k = 2;
+
+    // search for k nearest neighbors
+    let nn: Vec<&str> = index
+        .search(&target, k)
+        .into_iter()
+        .map(|i| strings[i])
+        .collect();
+    println!("target has neighbors: {:?}", nn);
 
     Ok(())
 }
