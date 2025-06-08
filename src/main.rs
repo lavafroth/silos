@@ -1,6 +1,9 @@
-use std::collections::HashMap;
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Mutex,
+};
 
-use actix_web::{App, HttpResponse, HttpServer, Responder, get, post, web};
+use actix_web::{App, HttpServer, Responder, post, web};
 use anyhow::{Error as E, Result};
 use clap::Parser;
 use hora::core::ann_index::ANNIndex;
@@ -62,17 +65,44 @@ pub struct SnippetOnDisk {
     desc: String,
 }
 
-pub struct LanguageMap {
-    inner: HashMap<String, HNSWIndex<f32, String>>,
+struct AppStateWrapper {
+    inner: Mutex<AppState>,
+}
+
+struct AppState {
+    dict: HashMap<String, HNSWIndex<f32, String>>,
+    embed: embed::Embed,
 }
 
 #[post("/api/v1/get")]
-async fn v1_get_snippet(snippet_request: web::Json<SnippetRequest>) -> impl Responder {
+async fn v1_get_snippet(
+    data: web::Data<AppStateWrapper>,
+    snippet_request: web::Json<SnippetRequest>,
+) -> impl Responder {
+    let Some((prompt, lang)) = snippet_request.desc.rsplit_once(" in ") else {
+        return format!("end your request with \" in somelang\".");
+    };
+
+    let Ok(mut appstate) = data.inner.lock() else {
+        return format!("the server is busy.");
+    };
+
+    let Ok(target) = appstate.embed.embed(prompt) else {
+        return format!("failed to embed your proompt. come back later.");
+    };
+
+    // search for k nearest neighbors
+    let k = 1;
+    let nn: Vec<String> = appstate.dict[lang].search(&target, k);
+    for n in nn {
+        // basically returns the first one and dies
+        return format!("{n}");
+    }
     format!("bruh, you asked for {}", snippet_request.desc)
 }
 
 #[post("/api/v1/add")]
-async fn v1_add_snippet(snippet: web::Json<Snippet>) -> impl Responder {
+async fn v1_add_snippet(data: web::Data<AppState>, snippet: web::Json<Snippet>) -> impl Responder {
     format!("{} {} {}", snippet.body, snippet.lang, snippet.desc)
 }
 
@@ -82,9 +112,7 @@ async fn main() -> Result<()> {
 
     let mut embed = embed::Embed::new(args)?;
 
-    let mut lang_map = LanguageMap {
-        inner: HashMap::default(),
-    };
+    let mut lang_map = BTreeMap::default();
 
     let paths = glob::glob("./snippets/v1/**/*.json")?;
     for path in paths {
@@ -98,7 +126,7 @@ async fn main() -> Result<()> {
             .to_string_lossy()
             .to_string();
 
-        let current_lang_index = lang_map.inner.entry(parent).or_insert_with(|| {
+        let current_lang_index = lang_map.entry(parent).or_insert_with(|| {
             let dimension = 384;
             let params = hora::index::hnsw_params::HNSWParams::<f32>::default();
             let index = HNSWIndex::<f32, String>::new(dimension, &params);
@@ -111,31 +139,31 @@ async fn main() -> Result<()> {
             .map_err(E::msg)?;
     }
 
-    for index in lang_map.inner.values_mut() {
+    let mut appstate = HashMap::default();
+
+    for (k, mut index) in lang_map.into_iter() {
         index
             .build(hora::core::metrics::Metric::Euclidean)
             .map_err(E::msg)?;
+        appstate.insert(k, index);
     }
-
-    let prompt = "channel worker in go";
-
-    let Some((prompt, lang)) = prompt.rsplit_once(" in ") else {
-        return Ok(());
+    let appstate = AppState {
+        dict: appstate,
+        embed,
     };
 
-    let target = embed.embed(&prompt)?;
-    let k = 1;
+    let appstate_wrapped = web::Data::new(AppStateWrapper {
+        inner: Mutex::new(appstate),
+    });
 
-    // search for k nearest neighbors
-    let nn: Vec<String> = lang_map.inner[lang].search(&target, k);
-    println!("target has neighbors");
-    for n in nn {
-        println!("{n}");
-    }
-
-    HttpServer::new(|| App::new().service(v1_get_snippet).service(v1_add_snippet))
-        .bind(("127.0.0.1", 8000))?
-        .run()
-        .await
-        .map_err(E::from)
+    HttpServer::new(move || {
+        App::new()
+            .app_data(appstate_wrapped.clone())
+            .service(v1_get_snippet)
+            .service(v1_add_snippet)
+    })
+    .bind(("127.0.0.1", 8000))?
+    .run()
+    .await
+    .map_err(E::from)
 }
