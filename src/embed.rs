@@ -71,38 +71,6 @@ impl Embed {
     }
 }
 
-fn prepare_inputs(
-    prompt: &str,
-    tokenizer: &Tokenizer,
-    device: &Device,
-) -> Result<(Tensor, Tensor)> {
-    let mut binding = tokenizer.clone();
-    let tokenizer_configured = binding
-        .with_padding(None)
-        .with_truncation(None)
-        .map_err(E::msg)?;
-
-    let tokens = tokenizer_configured
-        .encode(prompt, true)
-        .map_err(E::msg)?
-        .get_ids()
-        .to_vec();
-
-    let token_ids = Tensor::new(tokens.as_slice(), device)?.unsqueeze(0)?;
-
-    let mask = attention_mask(tokens.len(), device)?;
-    // println!("token_ids: {:?}", token_ids.to_vec2::<u32>()?);
-
-    Ok((token_ids, mask))
-}
-
-fn attention_mask(size: usize, device: &Device) -> Result<Tensor> {
-    let mask: Vec<_> = (0..size)
-        .flat_map(|i| (0..size).map(move |j| u8::from(j > i)))
-        .collect();
-    Ok(Tensor::from_slice(&mask, (size, size), device)?)
-}
-
 pub fn normalize_l2(v: &Tensor) -> Result<Tensor> {
     Ok(v.broadcast_div(&v.sqr()?.sum_keepdim(1)?.sqrt()?)?)
 }
