@@ -20,20 +20,16 @@ struct Args {
     /// Revision or branch
     #[arg(long)]
     revision: Option<String>,
-
-    /// When set, compute embeddings for this prompt.
-    #[arg(long)]
-    prompt: String,
 }
 
 impl Args {
     fn resolve_model_and_revision(&self) -> (String, String) {
-        let default_model = "distilbert-base-uncased".to_string();
-        let default_revision = "main".to_string();
+        let default_model = "sentence-transformers/all-MiniLM-L6-v2".to_string();
+        let default_revision = "refs/pr/21".to_string();
 
         match (self.model_id.clone(), self.revision.clone()) {
             (Some(model_id), Some(revision)) => (model_id, revision),
-            (Some(model_id), None) => (model_id, default_revision),
+            (Some(model_id), None) => (model_id, "main".to_owned()),
             (None, Some(revision)) => (default_model, revision),
             (None, None) => (default_model, default_revision),
         }
@@ -53,51 +49,72 @@ pub struct Snippet {
     body: String,
 }
 
-#[get("/api/v1/get")]
-async fn hello() -> impl Responder {
-    HttpResponse::Ok().body("bob")
+#[derive(Deserialize)]
+pub struct SnippetRequest {
+    desc: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct SnippetOnDisk {
+    body: String,
+    desc: String,
+}
+
+#[post("/api/v1/get")]
+async fn v1_get_snippet(snippet_request: web::Json<SnippetRequest>) -> impl Responder {
+    format!("bruh, you asked for {}", snippet_request.desc)
 }
 
 #[post("/api/v1/add")]
-async fn add_snippet(snippet: web::Json<Snippet>) -> impl Responder {
-    HttpResponse::Ok().body(format!(
-        "{} {} {}",
-        snippet.body, snippet.lang, snippet.desc
-    ))
+async fn v1_add_snippet(snippet: web::Json<Snippet>) -> impl Responder {
+    format!("{} {} {}", snippet.body, snippet.lang, snippet.desc)
 }
 
 #[actix_web::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
-    let prompt = args.prompt.clone();
-    let embed = embed::Embed::new(args)?;
 
-    let dimension = 768;
+    let mut embed = embed::Embed::new(args)?;
+
+    let dimension = 384;
     let params = hora::index::hnsw_params::HNSWParams::<f32>::default();
-    let mut index = HNSWIndex::<f32, usize>::new(dimension, &params);
+    let mut index = HNSWIndex::<f32, String>::new(dimension, &params);
 
-    let strings = ["lol"];
+    let paths = glob::glob("./snippets/v1/**/*.json")?;
+    for path in paths {
+        let path = path?;
+        let _parent = path
+            .components()
+            .rev()
+            .nth(1)
+            .unwrap()
+            .as_os_str()
+            .to_string_lossy()
+            .to_string();
 
-    for (i, s) in strings.iter().enumerate() {
-        index.add(&embed.embed(s)?, i).map_err(E::msg)?;
+        let snippet: SnippetOnDisk = serde_json::from_str(&std::fs::read_to_string(path)?)?;
+        index
+            .add(&embed.embed(&snippet.desc)?, snippet.body)
+            .map_err(E::msg)?;
     }
+
     index
         .build(hora::core::metrics::Metric::Euclidean)
         .map_err(E::msg)?;
 
-    let target = embed.embed(&prompt)?;
+    let prompt = "channel worker";
 
-    let k = 2;
+    let target = embed.embed(&prompt)?;
+    let k = 1;
 
     // search for k nearest neighbors
-    let nn: Vec<&str> = index
-        .search(&target, k)
-        .into_iter()
-        .map(|i| strings[i])
-        .collect();
-    println!("target has neighbors: {:?}", nn);
+    let nn: Vec<String> = index.search(&target, k);
+    println!("target has neighbors");
+    for n in nn {
+        println!("{n}");
+    }
 
-    HttpServer::new(|| App::new().service(hello).service(add_snippet))
+    HttpServer::new(|| App::new().service(v1_get_snippet).service(v1_add_snippet))
         .bind(("127.0.0.1", 8000))?
         .run()
         .await
