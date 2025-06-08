@@ -1,0 +1,4 @@
+{
+  "desc": "simple worker with channel to communicate finishing status",
+  "body": "func worker(done chan bool) {\n    fmt.Print(\"churning...\")\n    time.Sleep(1 * time.Second)\n    fmt.Println(\"halted\")\n    done <- true\n}"
+}
