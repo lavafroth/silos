@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use actix_web::{App, HttpResponse, HttpServer, Responder, get, post, web};
 use anyhow::{Error as E, Result};
 use clap::Parser;
@@ -60,6 +62,10 @@ pub struct SnippetOnDisk {
     desc: String,
 }
 
+pub struct LanguageMap {
+    inner: HashMap<String, HNSWIndex<f32, String>>,
+}
+
 #[post("/api/v1/get")]
 async fn v1_get_snippet(snippet_request: web::Json<SnippetRequest>) -> impl Responder {
     format!("bruh, you asked for {}", snippet_request.desc)
@@ -76,14 +82,14 @@ async fn main() -> Result<()> {
 
     let mut embed = embed::Embed::new(args)?;
 
-    let dimension = 384;
-    let params = hora::index::hnsw_params::HNSWParams::<f32>::default();
-    let mut index = HNSWIndex::<f32, String>::new(dimension, &params);
+    let mut lang_map = LanguageMap {
+        inner: HashMap::default(),
+    };
 
     let paths = glob::glob("./snippets/v1/**/*.json")?;
     for path in paths {
         let path = path?;
-        let _parent = path
+        let parent = path
             .components()
             .rev()
             .nth(1)
@@ -92,23 +98,36 @@ async fn main() -> Result<()> {
             .to_string_lossy()
             .to_string();
 
+        let current_lang_index = lang_map.inner.entry(parent).or_insert_with(|| {
+            let dimension = 384;
+            let params = hora::index::hnsw_params::HNSWParams::<f32>::default();
+            let index = HNSWIndex::<f32, String>::new(dimension, &params);
+            index
+        });
+
         let snippet: SnippetOnDisk = serde_json::from_str(&std::fs::read_to_string(path)?)?;
-        index
+        current_lang_index
             .add(&embed.embed(&snippet.desc)?, snippet.body)
             .map_err(E::msg)?;
     }
 
-    index
-        .build(hora::core::metrics::Metric::Euclidean)
-        .map_err(E::msg)?;
+    for index in lang_map.inner.values_mut() {
+        index
+            .build(hora::core::metrics::Metric::Euclidean)
+            .map_err(E::msg)?;
+    }
 
-    let prompt = "channel worker";
+    let prompt = "channel worker in go";
+
+    let Some((prompt, lang)) = prompt.rsplit_once(" in ") else {
+        return Ok(());
+    };
 
     let target = embed.embed(&prompt)?;
     let k = 1;
 
     // search for k nearest neighbors
-    let nn: Vec<String> = index.search(&target, k);
+    let nn: Vec<String> = lang_map.inner[lang].search(&target, k);
     println!("target has neighbors");
     for n in nn {
         println!("{n}");
