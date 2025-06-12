@@ -2788,6 +2788,7 @@ dependencies = [
  "candle-nn",
  "candle-transformers",
  "clap",
+ "derive_more",
  "glob",
  "hf-hub",
  "hora",

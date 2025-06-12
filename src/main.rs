@@ -3,9 +3,14 @@ use std::{
     sync::Mutex,
 };
 
-use actix_web::{App, HttpServer, Responder, post, web};
+use actix_web::{
+    App, HttpResponse, HttpServer, Responder, error,
+    http::{StatusCode, header::ContentType},
+    post, web,
+};
 use anyhow::{Error as E, Result};
 use clap::Parser;
+use derive_more::derive::{Display, Error};
 use hora::core::ann_index::ANNIndex;
 use hora::index::hnsw_idx::HNSWIndex;
 use serde::{Deserialize, Serialize};
@@ -27,6 +32,31 @@ struct Args {
     revision: Option<String>,
 }
 
+#[derive(Debug, Display, Error)]
+enum V1GetError {
+    #[display("the server is busy. come back later.")]
+    Busy,
+    #[display("end your request with \" in somelang\".")]
+    MissingSuffix,
+    #[display("failed to embed your prompt.")]
+    EmbedFailed,
+}
+
+impl error::ResponseError for V1GetError {
+    fn error_response(&self) -> HttpResponse {
+        HttpResponse::build(self.status_code())
+            .insert_header(ContentType::html())
+            .body(self.to_string())
+    }
+
+    fn status_code(&self) -> StatusCode {
+        match *self {
+            Self::EmbedFailed => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::MissingSuffix => StatusCode::BAD_REQUEST,
+            Self::Busy => StatusCode::GATEWAY_TIMEOUT,
+        }
+    }
+}
 impl Args {
     fn resolve_model_and_revision(&self) -> (String, String) {
         let default_model = "sentence-transformers/all-MiniLM-L6-v2".to_string();
@@ -78,27 +108,23 @@ struct AppState {
 async fn v1_get_snippet(
     data: web::Data<AppStateWrapper>,
     snippet_request: web::Json<SnippetRequest>,
-) -> impl Responder {
+) -> Result<impl Responder, V1GetError> {
     let Some((prompt, lang)) = snippet_request.desc.rsplit_once(" in ") else {
-        return format!("end your request with \" in somelang\".");
+        return Err(V1GetError::MissingSuffix);
     };
 
     let Ok(mut appstate) = data.inner.lock() else {
-        return format!("the server is busy.");
+        return Err(V1GetError::Busy);
     };
 
     let Ok(target) = appstate.embed.embed(prompt) else {
-        return format!("failed to embed your proompt. come back later.");
+        return Err(V1GetError::EmbedFailed);
     };
 
     // search for k nearest neighbors
-    let k = 1;
-    let nn: Vec<String> = appstate.dict[lang].search(&target, k);
-    for n in nn {
-        // basically returns the first one and dies
-        return format!("{n}");
-    }
-    format!("bruh, you asked for {}", snippet_request.desc)
+    let closest: Vec<String> =
+        appstate.dict[lang].search(&target, snippet_request.top_k.unwrap_or(1));
+    Ok(web::Json(closest))
 }
 
 #[post("/api/v1/add")]

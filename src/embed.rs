@@ -17,9 +17,9 @@ pub struct Embed {
 impl Embed {
     pub(crate) fn new(args: Args) -> Result<Self> {
         let device = if args.cpu {
-            candle_core::Device::Cpu
+            Device::Cpu
         } else {
-            candle_core::Device::new_cuda(0)?
+            Device::new_cuda(0)?
         };
 
         let (model_id, revision) = args.resolve_model_and_revision();
