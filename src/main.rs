@@ -87,6 +87,7 @@ pub struct Snippet {
 #[derive(Deserialize)]
 pub struct SnippetRequest {
     desc: String,
+    top_k: Option<usize>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -128,8 +129,32 @@ async fn v1_get_snippet(
 }
 
 #[post("/api/v1/add")]
-async fn v1_add_snippet(data: web::Data<AppState>, snippet: web::Json<Snippet>) -> impl Responder {
-    format!("{} {} {}", snippet.body, snippet.lang, snippet.desc)
+async fn v1_add_snippet(
+    data: web::Data<AppStateWrapper>,
+    snippet: web::Json<Snippet>,
+) -> Result<impl Responder, V1GetError> {
+    let Ok(mut appstate) = data.inner.lock() else {
+        return Err(V1GetError::Busy);
+    };
+    let Ok(embedding) = appstate.embed.embed(&snippet.desc) else {
+        return Err(V1GetError::EmbedFailed);
+    };
+    let index = appstate
+        .dict
+        .entry(snippet.lang.clone())
+        .or_insert_with(|| {
+            let dimension = 384;
+            let params = hora::index::hnsw_params::HNSWParams::<f32>::default();
+            let index = HNSWIndex::<f32, String>::new(dimension, &params);
+            index
+        });
+    index.add(&embedding, snippet.body.clone()).unwrap();
+    index.build(hora::core::metrics::Metric::Euclidean).unwrap();
+
+    Ok(format!(
+        "{} {} {}",
+        snippet.body, snippet.lang, snippet.desc
+    ))
 }
 
 #[actix_web::main]
