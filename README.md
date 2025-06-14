@@ -43,13 +43,14 @@ cargo r --cpu
 
 ### Usage
 
-The server spawns an HTTP REST API at localhost:8000 which can be queried to fetch code snippet.
+An HTTP REST API listens on port 8000 and can be queried for code snippet.
 
-```sh
-curl http://localhost:8000/api/v1/get \
--H 'content-type: application/json' \
---data '{ "desc": "channeled worker in go" }'
+``` sh
+curl http://localhost:8000/api/v1/get --json '{ "desc": "channeled worker in go" }'
 ```
 
-You must add the "in someLanguage" suffix to your query's description field. This is to keep the API design simple for both
-IDE and non-IDE users. In the future, we aim to create an IDE extension that adds the suffix automatically based on the detected filetype.
+You must add the "in someLanguage" suffix to your query's description field. This is to keep the API design simple for bothIDE and non-IDE users.
+
+## TODOs
+
+- [ ] Create an LSP to add the suffix based on filetype.
