@@ -35,21 +35,30 @@ After adding your snippets, run the server
 
 > [!NOTE]
 >
-> You may remove the `--cpu` flag if you wish to use a dedicated GPU for embedding text.
+> Embedding defaults to using the CPU. You may use the `--gpu` with a GPU number flag if you wish to use a dedicated GPU.
 
 ```
-cargo r --cpu
+cargo r
 ```
 
 ### Usage
 
 An HTTP REST API listens on port 8000 and can be queried for code snippet.
 
+#### Query a snippet
+
 ``` sh
 curl http://localhost:8000/api/v1/get --json '{ "desc": "channeled worker in go" }'
 ```
 
 You must add the "in someLanguage" suffix to your query's description field. This is to keep the API design simple for bothIDE and non-IDE users.
+
+#### Add a snippet
+
+``` sh
+curl http://localhost:8000/api/v1/add --json \
+'{ "desc": "Build an asynchronous shared mutable state", "lang": "rust", "body": "let object = Arc::new(Mutex::new(old));" }'
+```
 
 ## TODOs
 
