@@ -10,15 +10,15 @@ mod v1;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    /// Run on CPU rather than on GPU.
+    /// Run on the Nth GPU device.
     #[arg(long)]
-    cpu: bool,
+    gpu: Option<usize>,
 
     /// The model to use, check out available models: https://huggingface.co/models?library=sentence-transformers&sort=trending
     #[arg(long)]
     model_id: Option<String>,
 
-    /// Revision or branch
+    /// Revision or branch.
     #[arg(long)]
     revision: Option<String>,
 }
@@ -60,7 +60,7 @@ async fn main() -> Result<()> {
         let current_lang_index = lang_map.entry(parent).or_insert_with(|| {
             let dimension = 384;
             let params = hora::index::hnsw_params::HNSWParams::<f32>::default();
-            
+
             HNSWIndex::<f32, String>::new(dimension, &params)
         });
 
