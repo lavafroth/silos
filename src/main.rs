@@ -3,7 +3,7 @@ use anyhow::{Error as E, Result};
 use clap::Parser;
 use hora::core::ann_index::ANNIndex;
 use hora::index::hnsw_idx::HNSWIndex;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 mod embed;
 mod v1;
 
@@ -42,8 +42,7 @@ async fn main() -> Result<()> {
     let args = Args::parse();
 
     let mut embed = embed::Embed::new(args)?;
-
-    let mut lang_map = BTreeMap::default();
+    let mut dict = HashMap::default();
 
     let paths = glob::glob("./snippets/v1/**/*.json")?;
     for path in paths {
@@ -57,7 +56,7 @@ async fn main() -> Result<()> {
             .to_string_lossy()
             .to_string();
 
-        let current_lang_index = lang_map.entry(parent).or_insert_with(|| {
+        let current_lang_index = dict.entry(parent).or_insert_with(|| {
             let dimension = 384;
             let params = hora::index::hnsw_params::HNSWParams::<f32>::default();
 
@@ -71,18 +70,12 @@ async fn main() -> Result<()> {
             .map_err(E::msg)?;
     }
 
-    let mut appstate = HashMap::default();
-
-    for (k, mut index) in lang_map.into_iter() {
+    for index in dict.values_mut() {
         index
             .build(hora::core::metrics::Metric::Euclidean)
             .map_err(E::msg)?;
-        appstate.insert(k, index);
     }
-    let appstate = v1::api::AppState {
-        dict: appstate,
-        embed,
-    };
+    let appstate = v1::api::AppState { dict, embed };
 
     let appstate_wrapped = web::Data::new(appstate.build());
 
