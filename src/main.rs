@@ -21,6 +21,10 @@ struct Args {
     /// Revision or branch.
     #[arg(long)]
     revision: Option<String>,
+
+    /// The port for the API to listen on
+    #[arg(long, default_value = "8000")]
+    port: u16,
 }
 
 impl Args {
@@ -40,11 +44,11 @@ impl Args {
 #[actix_web::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
-
+    let port = args.port;
     let mut embed = embed::Embed::new(args)?;
     let mut dict = HashMap::default();
 
-    let paths = glob::glob("./snippets/v1/**/*.json")?;
+    let paths = glob::glob("./snippets/v1/*/*.json")?;
     for path in paths {
         let path = path?;
         let parent = path
@@ -85,7 +89,7 @@ async fn main() -> Result<()> {
             .service(v1::api::get_snippet)
             .service(v1::api::add_snippet)
     })
-    .bind(("127.0.0.1", 8000))?
+    .bind(("127.0.0.1", port))?
     .run()
     .await
     .map_err(E::from)
