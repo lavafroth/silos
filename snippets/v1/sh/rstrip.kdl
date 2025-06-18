@@ -1,0 +1,7 @@
+desc "strip pattern from the end of a string"
+body """
+rstrip() {
+  printf '%s\n' "${1%%$2}"
+}
+"""
+

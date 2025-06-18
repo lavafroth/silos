@@ -1,0 +1,10 @@
+desc "Loop over a range of numbers"
+body """
+start=0
+end=50
+
+while [ "$start" -le "$end" ]; do
+    printf '%s\n' "$start"
+    start=$((start+1))
+done
+"""

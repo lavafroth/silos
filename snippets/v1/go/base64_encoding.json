@@ -1,5 +1,0 @@
-{
-  "desc": "base64 encoding without marshalling object",
-  "body": "// import \"encoding/base64\"\nencoded := base64.StdEncoding.EncodeToString([]byte(data))\nfmt.Println(encoded)"
-}
-

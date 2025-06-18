@@ -1,0 +1,3 @@
+desc "read a variable with a prompt"
+body #"read --prompt "echo 'PROMPT' " -l var"#
+

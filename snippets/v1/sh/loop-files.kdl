@@ -1,0 +1,7 @@
+desc "Loop over all files in the current working directory"
+body """
+for file in *; do
+    [ -e "$file" ] || [ -L "$file" ] || continue
+    printf '%s\n' "$file"
+done
+"""

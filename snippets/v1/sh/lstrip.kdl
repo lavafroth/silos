@@ -1,0 +1,6 @@
+desc "strip pattern from the start of a string"
+body """
+lstrip() {
+  printf '%s\n' "${1##$2}"
+}
+"""

@@ -1,0 +1,9 @@
+desc "simple worker with channel to communicate finishing status"
+body """
+func worker(done chan bool) {
+    fmt.Print("churning...")
+    time.Sleep(1 * time.Second)
+    fmt.Println("halted")
+    done <- true
+}
+"""
