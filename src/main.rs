@@ -1,11 +1,13 @@
 use actix_web::{App, HttpServer, web};
-use anyhow::{Error as E, Result};
+use anyhow::{Context, Error as E, Result};
 use clap::Parser;
 use hora::core::ann_index::ANNIndex;
 use hora::index::hnsw_idx::HNSWIndex;
+use kdl::KdlDocument;
 use std::collections::HashMap;
 mod embed;
 mod v1;
+// mod v2;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -48,7 +50,7 @@ async fn main() -> Result<()> {
     let mut embed = embed::Embed::new(args)?;
     let mut dict = HashMap::default();
 
-    let paths = glob::glob("./snippets/v1/*/*.json")?;
+    let paths = glob::glob("./snippets/v1/*/*.kdl")?;
     for path in paths {
         let path = path?;
         let parent = path
@@ -67,10 +69,17 @@ async fn main() -> Result<()> {
             HNSWIndex::<f32, String>::new(dimension, &params)
         });
 
-        let snippet: v1::api::SnippetOnDisk =
-            serde_json::from_str(&std::fs::read_to_string(path)?)?;
+        let doc_str = std::fs::read_to_string(path)?;
+        let doc: KdlDocument = doc_str.parse().context("failed to parse KDL")?;
+
+        let Some(desc) = doc.get_arg("desc").and_then(|v| v.as_string()) else {
+            continue;
+        };
+        let Some(body) = doc.get_arg("body").and_then(|v| v.as_string()) else {
+            continue;
+        };
         current_lang_index
-            .add(&embed.embed(&snippet.desc)?, snippet.body)
+            .add(&embed.embed(desc)?, body.to_string())
             .map_err(E::msg)?;
     }
 
