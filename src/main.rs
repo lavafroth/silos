@@ -7,7 +7,7 @@ use kdl::KdlDocument;
 use std::collections::HashMap;
 mod embed;
 mod v1;
-// mod v2;
+mod v2;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -69,8 +69,8 @@ async fn main() -> Result<()> {
             HNSWIndex::<f32, String>::new(dimension, &params)
         });
 
-        let doc_str = std::fs::read_to_string(path)?;
-        let doc: KdlDocument = doc_str.parse().context("failed to parse KDL")?;
+        let doc_str = std::fs::read_to_string(&path)?;
+        let doc: KdlDocument = doc_str.parse().context(format!("failed to parse KDL: {}", path.display()))?;
 
         let Some(desc) = doc.get_arg("desc").and_then(|v| v.as_string()) else {
             continue;
@@ -88,7 +88,29 @@ async fn main() -> Result<()> {
             .build(hora::core::metrics::Metric::Euclidean)
             .map_err(E::msg)?;
     }
-    let appstate = v1::api::AppState { dict, embed };
+
+    // v2 stuff
+    let mutations = v2::mutation::from_path("snippets/v2/go/mutations.kdl")?;
+    let mut v2_dict = HashMap::new();
+    let dimension = 384;
+    let params = hora::index::hnsw_params::HNSWParams::<f32>::default();
+
+    let mut v2_index = HNSWIndex::<f32, usize>::new(dimension, &params);
+    v2_index
+        .add(&embed.embed(&mutations.description)?, 0)
+        .map_err(E::msg)?;
+    v2_index
+        .build(hora::core::metrics::Metric::Euclidean)
+        .map_err(E::msg)?;
+    let v2_mutations_collection = vec![mutations];
+    v2_dict.insert("go".to_string(), v2_index);
+
+    let appstate = v1::api::AppState {
+        dict,
+        embed,
+        v2_dict,
+        v2_mutations_collection,
+    };
 
     let appstate_wrapped = web::Data::new(appstate.build());
 
@@ -97,6 +119,7 @@ async fn main() -> Result<()> {
             .app_data(appstate_wrapped.clone())
             .service(v1::api::get_snippet)
             .service(v1::api::add_snippet)
+            .service(v2::api::get_snippet)
     })
     .bind(("127.0.0.1", port))?
     .run()

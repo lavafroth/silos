@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::Mutex};
 use hora::index::hnsw_idx::HNSWIndex;
 use serde::{Deserialize, Serialize};
 
-use crate::embed;
+use crate::{embed, v2::mutation::MutationCollection};
 
 use super::errors::GetError;
 
@@ -24,12 +24,14 @@ pub struct SnippetOnDisk {
 }
 
 pub struct AppStateWrapper {
-    inner: Mutex<AppState>,
+    pub inner: Mutex<AppState>,
 }
 
 pub struct AppState {
     pub dict: HashMap<String, HNSWIndex<f32, String>>,
     pub embed: embed::Embed,
+    pub v2_dict: HashMap<String, HNSWIndex<f32, usize>>,
+    pub v2_mutations_collection: Vec<MutationCollection>,
 }
 
 impl AppState {
@@ -93,7 +95,7 @@ pub(crate) async fn add_snippet(
         .or_insert_with(|| {
             let dimension = 384;
             let params = hora::index::hnsw_params::HNSWParams::<f32>::default();
-            
+
             HNSWIndex::<f32, String>::new(dimension, &params)
         });
     index.add(&embedding, snippet.body.clone()).unwrap();
