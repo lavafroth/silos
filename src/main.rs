@@ -90,20 +90,39 @@ async fn main() -> Result<()> {
     }
 
     // v2 stuff
-    let mutations = v2::mutation::from_path("snippets/v2/go/mutations.kdl")?;
-    let mut v2_dict = HashMap::new();
-    let dimension = 384;
-    let params = hora::index::hnsw_params::HNSWParams::<f32>::default();
+    let paths = glob::glob("./snippets/v2/*/*.kdl")?;
+        let mut v2_dict = HashMap::new();
+    let mut v2_mutations_collection = vec![];
+    for (i, path) in paths.enumerate() {
+        let path = path?;
+        let parent = path
+            .components()
+            .rev()
+            .nth(1)
+            .unwrap()
+            .as_os_str()
+            .to_string_lossy()
+            .to_string();
 
-    let mut v2_index = HNSWIndex::<f32, usize>::new(dimension, &params);
-    v2_index
-        .add(&embed.embed(&mutations.description)?, 0)
-        .map_err(E::msg)?;
-    v2_index
-        .build(hora::core::metrics::Metric::Euclidean)
-        .map_err(E::msg)?;
-    let v2_mutations_collection = vec![mutations];
-    v2_dict.insert("go".to_string(), v2_index);
+        let mutations = v2::mutation::from_path(path)?;
+        let current_lang_index = v2_dict.entry(parent).or_insert_with(|| {
+            let dimension = 384;
+            let params = hora::index::hnsw_params::HNSWParams::<f32>::default();
+
+            HNSWIndex::<f32, usize>::new(dimension, &params)
+        });
+
+        current_lang_index
+            .add(&embed.embed(&mutations.description)?, i)
+            .map_err(E::msg)?;
+        v2_mutations_collection.push(mutations);
+    }
+
+    for index in v2_dict.values_mut() {
+        index
+            .build(hora::core::metrics::Metric::Euclidean)
+            .map_err(E::msg)?;
+    }
 
     let appstate = v1::api::AppState {
         dict,

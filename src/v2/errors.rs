@@ -13,6 +13,8 @@ pub enum GetError {
     MissingSuffix,
     #[display("failed to embed your prompt.")]
     EmbedFailed,
+    #[display("snippets were requested for an unknown language")]
+    UnknownLang
 }
 
 impl error::ResponseError for GetError {
@@ -29,7 +31,7 @@ impl error::ResponseError for GetError {
     fn status_code(&self) -> StatusCode {
         match *self {
             Self::EmbedFailed => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::MissingSuffix => StatusCode::BAD_REQUEST,
+            Self::MissingSuffix | Self::UnknownLang => StatusCode::BAD_REQUEST,
             Self::Busy => StatusCode::GATEWAY_TIMEOUT,
         }
     }

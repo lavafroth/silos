@@ -3,24 +3,15 @@ use std::{collections::HashMap, sync::Mutex};
 
 use hora::index::hnsw_idx::HNSWIndex;
 use serde::{Deserialize, Serialize};
-
 use crate::{embed, v2::mutation::MutationCollection};
-
 use super::errors::GetError;
-
+use anyhow::Result;
 use actix_web::{Responder, post, web};
 
-use anyhow::Result;
 #[derive(Deserialize)]
 pub struct SnippetRequest {
     desc: String,
     top_k: Option<usize>,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct SnippetOnDisk {
-    pub body: String,
-    pub desc: String,
 }
 
 pub struct AppStateWrapper {

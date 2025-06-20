@@ -4,9 +4,8 @@ use tree_sitter::Parser;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{embed, v2::mutation};
 
-use super::{errors::GetError, mutation::Mutation};
+use super::{errors::GetError, mutation};
 
 use actix_web::{Responder, post, web};
 
@@ -31,13 +30,13 @@ pub struct Snippet {
     body: String,
 }
 
-fn get_lang(s: &str) -> tree_sitter::Language {
-    match s {
+fn get_lang(s: &str) -> Result<tree_sitter::Language, GetError> {
+    Ok(match s {
         "go" => tree_sitter_go::LANGUAGE,
         "rust" => tree_sitter_rust::LANGUAGE,
-        _ => unreachable!(),
+        _ => return Err(GetError::UnknownLang),
     }
-    .into()
+    .into())
 }
 
 #[post("/api/v2/get")]
@@ -49,7 +48,7 @@ pub(crate) async fn get_snippet(
         return Err(GetError::MissingSuffix);
     };
 
-    let langfn = get_lang(lang);
+    let langfn = get_lang(lang)?;
 
     println!("{prompt:?}");
 
@@ -64,7 +63,7 @@ pub(crate) async fn get_snippet(
     let mut parser = Parser::new();
     parser.set_language(&langfn).unwrap();
 
-    let source_code = std::fs::read_to_string("./example.go").unwrap();
+    let source_code = snippet_request.body.as_str();
     let source_bytes = source_code.as_bytes();
     let tree = parser.parse(&source_code, None).unwrap();
     let root_node = tree.root_node();
@@ -76,7 +75,7 @@ pub(crate) async fn get_snippet(
         .map(|v| {
             mutation::apply(
                 langfn.clone(),
-                snippet_request.body.as_bytes(),
+                source_bytes,
                 root_node,
                 &appstate.v2_mutations_collection[*v],
             )
