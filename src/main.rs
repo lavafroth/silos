@@ -1,11 +1,13 @@
 use actix_web::{App, HttpServer, web};
-use anyhow::{Context, Error as E, Result};
+use anyhow::{Context, Error as E, Result, bail};
 use clap::Parser;
 use hora::core::ann_index::ANNIndex;
 use hora::index::hnsw_idx::HNSWIndex;
 use kdl::KdlDocument;
+use state::State;
 use std::collections::HashMap;
 mod embed;
+mod state;
 mod v1;
 mod v2;
 
@@ -43,6 +45,13 @@ impl Args {
     }
 }
 
+fn path_to_parent_base(p: &std::path::Path) -> Result<String> {
+    let Some(parent) = p.parent().and_then(|v| v.to_str()).map(|v| v.to_string()) else {
+        bail!("failed to parse snippets path, make sure the directory structure is valid");
+    };
+    Ok(parent)
+}
+
 #[actix_web::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
@@ -53,14 +62,7 @@ async fn main() -> Result<()> {
     let paths = glob::glob("./snippets/v1/*/*.kdl")?;
     for path in paths {
         let path = path?;
-        let parent = path
-            .components()
-            .rev()
-            .nth(1)
-            .unwrap()
-            .as_os_str()
-            .to_string_lossy()
-            .to_string();
+        let parent = path_to_parent_base(&path)?;
 
         let current_lang_index = dict.entry(parent).or_insert_with(|| {
             let dimension = 384;
@@ -70,7 +72,9 @@ async fn main() -> Result<()> {
         });
 
         let doc_str = std::fs::read_to_string(&path)?;
-        let doc: KdlDocument = doc_str.parse().context(format!("failed to parse KDL: {}", path.display()))?;
+        let doc: KdlDocument = doc_str
+            .parse()
+            .context(format!("failed to parse KDL: {}", path.display()))?;
 
         let Some(desc) = doc.get_arg("desc").and_then(|v| v.as_string()) else {
             continue;
@@ -91,18 +95,11 @@ async fn main() -> Result<()> {
 
     // v2 stuff
     let paths = glob::glob("./snippets/v2/*/*.kdl")?;
-        let mut v2_dict = HashMap::new();
+    let mut v2_dict = HashMap::new();
     let mut v2_mutations_collection = vec![];
     for (i, path) in paths.enumerate() {
         let path = path?;
-        let parent = path
-            .components()
-            .rev()
-            .nth(1)
-            .unwrap()
-            .as_os_str()
-            .to_string_lossy()
-            .to_string();
+        let parent = path_to_parent_base(&path)?;
 
         let mutations = v2::mutation::from_path(path)?;
         let current_lang_index = v2_dict.entry(parent).or_insert_with(|| {
@@ -124,11 +121,13 @@ async fn main() -> Result<()> {
             .map_err(E::msg)?;
     }
 
-    let appstate = v1::api::AppState {
-        dict,
+    let appstate = State {
         embed,
-        v2_dict,
-        v2_mutations_collection,
+        v1: v1::api::State { dict },
+        v2: v2::api::State {
+            dict: v2_dict,
+            mutations_collection: v2_mutations_collection,
+        },
     };
 
     let appstate_wrapped = web::Data::new(appstate.build());

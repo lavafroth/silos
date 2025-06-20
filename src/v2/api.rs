@@ -1,15 +1,17 @@
-use crate::v1::api::AppStateWrapper;
-use hora::core::ann_index::ANNIndex;
+use hora::{core::ann_index::ANNIndex, index::hnsw_idx::HNSWIndex};
+use std::collections::HashMap;
 use tree_sitter::Parser;
 
+use super::{errors::Error, mutation};
+use actix_web::{Responder, post, web};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
+pub struct State {
+    pub dict: HashMap<String, HNSWIndex<f32, usize>>,
+    pub mutations_collection: Vec<mutation::MutationCollection>,
+}
 
-use super::{errors::GetError, mutation};
-
-use actix_web::{Responder, post, web};
-
-use anyhow::Result;
 #[derive(Deserialize)]
 pub struct SnippetRequest {
     desc: String,
@@ -30,22 +32,23 @@ pub struct Snippet {
     body: String,
 }
 
-fn get_lang(s: &str) -> Result<tree_sitter::Language, GetError> {
+fn get_lang(s: &str) -> Result<tree_sitter::Language, Error> {
     Ok(match s {
         "go" => tree_sitter_go::LANGUAGE,
+        "c" => tree_sitter_c::LANGUAGE,
         "rust" => tree_sitter_rust::LANGUAGE,
-        _ => return Err(GetError::UnknownLang),
+        _ => return Err(Error::UnknownLang),
     }
     .into())
 }
 
 #[post("/api/v2/get")]
 pub(crate) async fn get_snippet(
-    data: web::Data<AppStateWrapper>,
+    data: web::Data<crate::state::StateWrapper>,
     snippet_request: web::Json<SnippetRequest>,
-) -> Result<impl Responder, GetError> {
+) -> Result<impl Responder, Error> {
     let Some((prompt, lang)) = snippet_request.desc.rsplit_once(" in ") else {
-        return Err(GetError::MissingSuffix);
+        return Err(Error::MissingSuffix);
     };
 
     let langfn = get_lang(lang)?;
@@ -53,11 +56,11 @@ pub(crate) async fn get_snippet(
     println!("{prompt:?}");
 
     let Ok(mut appstate) = data.inner.lock() else {
-        return Err(GetError::Busy);
+        return Err(Error::Busy);
     };
 
     let Ok(target) = appstate.embed.embed(prompt) else {
-        return Err(GetError::EmbedFailed);
+        return Err(Error::EmbedFailed);
     };
 
     let mut parser = Parser::new();
@@ -65,11 +68,13 @@ pub(crate) async fn get_snippet(
 
     let source_code = snippet_request.body.as_str();
     let source_bytes = source_code.as_bytes();
-    let tree = parser.parse(&source_code, None).unwrap();
+    let tree = parser
+        .parse(&source_code, None)
+        .ok_or(Error::SnippetParsing)?;
     let root_node = tree.root_node();
 
     // search for k nearest neighbors
-    let closest: Vec<String> = appstate.v2_dict[lang]
+    let closest: Vec<String> = appstate.v2.dict[lang]
         .search(&target, snippet_request.top_k.unwrap_or(1))
         .iter()
         .map(|v| {
@@ -77,39 +82,11 @@ pub(crate) async fn get_snippet(
                 langfn.clone(),
                 source_bytes,
                 root_node,
-                &appstate.v2_mutations_collection[*v],
+                &appstate.v2.mutations_collection[*v],
             )
             .expect(&format!("failed to apply mutations from collection {v}"))
+            // TODO: change the expect to a log
         })
         .collect();
     Ok(web::Json(closest))
 }
-
-// #[post("/api/v2/add")]
-// pub(crate) async fn add_snippet(
-//     data: web::Data<AppStateWrapper>,
-//     snippet: web::Json<Snippet>,
-// ) -> Result<impl Responder, GetError> {
-//     let Ok(mut appstate) = data.inner.lock() else {
-//         return Err(GetError::Busy);
-//     };
-//     let Ok(embedding) = appstate.embed.embed(&snippet.desc) else {
-//         return Err(GetError::EmbedFailed);
-//     };
-//     let index = appstate
-//         .dict
-//         .entry(snippet.lang.clone())
-//         .or_insert_with(|| {
-//             let dimension = 384;
-//             let params = hora::index::hnsw_params::HNSWParams::<f32>::default();
-
-//             HNSWIndex::<f32, String>::new(dimension, &params)
-//         });
-//     index.add(&embedding, snippet.body.clone()).unwrap();
-//     index.build(hora::core::metrics::Metric::Euclidean).unwrap();
-
-//     Ok(format!(
-//         "{} {} {}",
-//         snippet.body, snippet.lang, snippet.desc
-//     ))
-// }
