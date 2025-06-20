@@ -20,26 +20,26 @@ cd silos
 
 ### Setup
 
-Add your code snippets in the `./snippets/v1/LANGUAGE/` directory as JSON files, where LANGUAGE is some programming language.
+Add your code snippets as KDL files in the `./snippets/v1/LANGUAGE/` directory, Take a look at the example snippet for golang in `./snippets/v1/go/simple_worker.kdl`.
 
 The snippets must conform to the following structure:
 
-``` json
-{
-  "desc": "a well articulated description of the snippet",
-  "body": "fn main() { println!(\"The body of the snippet\") }"
-}
+``` kdl
+desc "a well articulated description of the snippet",
+body #"fn main() { println!("The body of the snippet") }"#
 ```
 
+KDL supports arbitrary raw strings with as many `#`s before and after the quotes to disambiguate them from the string contents.
+
 After adding your snippets, run the server
+
+``` sh
+cargo r
+```
 
 > [!NOTE]
 >
 > Embedding defaults to using the CPU. You may use the `--gpu` flag with a GPU number to use a dedicated GPU.
-
-```
-cargo r
-```
 
 ### Usage
 
