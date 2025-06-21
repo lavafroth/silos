@@ -1,0 +1,25 @@
+description "filepath base to parent's base"
+mutation {
+	expression """
+	(call_expression
+		function: (_) @func (#eq? @func "filepath.Base")
+		arguments: (_) @args
+	) @root
+	"""
+	substitute {
+		literal "filepath.Base(filepath.Dir(filepath.Clean"
+		capture "args"
+		literal "))"
+	}
+}
+
+mutation {
+	expression """
+	((interpreted_string_literal_content) @str
+	(#eq? @str "/home/h/signal/softiee")
+	) @root
+	"""
+	substitute {
+		literal "/home/softiee/signal/h"
+	}
+}
