@@ -55,16 +55,15 @@ pub(crate) async fn get_snippet(
 
     println!("{prompt:?}");
 
-    let Ok(mut appstate) = data.inner.lock() else {
-        return Err(Error::Busy);
-    };
-
-    let Ok(target) = appstate.embed.embed(prompt) else {
-        return Err(Error::EmbedFailed);
-    };
-
+    let mut appstate = data.inner.lock().map_err(|_| Error::Busy)?;
+    let target = appstate
+        .embed
+        .embed(prompt)
+        .map_err(|_| Error::EmbedFailed)?;
     let mut parser = Parser::new();
-    parser.set_language(&langfn).unwrap();
+    parser
+        .set_language(&langfn)
+        .map_err(|_| Error::UnknownLang)?;
 
     let source_code = snippet_request.body.as_str();
     let source_bytes = source_code.as_bytes();
