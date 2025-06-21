@@ -1,5 +1,6 @@
 use hora::{core::ann_index::ANNIndex, index::hnsw_idx::HNSWIndex};
 use std::collections::HashMap;
+use tracing::info_span;
 use tree_sitter::Parser;
 
 use super::{errors::Error, mutation};
@@ -53,7 +54,7 @@ pub(crate) async fn get_snippet(
 
     let langfn = get_lang(lang)?;
 
-    // span!(Level::INFO, "received a prompt {prompt:?}");
+    info_span!("received a prompt: {prompt:?}");
 
     let mut appstate = data.inner.lock().map_err(|_| Error::Busy)?;
     let target = appstate

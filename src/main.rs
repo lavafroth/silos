@@ -6,6 +6,7 @@ use hora::index::hnsw_idx::HNSWIndex;
 use kdl::KdlDocument;
 use state::State;
 use std::collections::HashMap;
+use tracing::info_span;
 
 mod embed;
 mod state;
@@ -60,6 +61,7 @@ fn path_to_parent_base(p: &std::path::Path) -> Result<String> {
 
 #[actix_web::main]
 async fn main() -> Result<()> {
+    tracing_subscriber::fmt::init();
     let args = Args::parse();
     let port = args.port;
     let mut embed = embed::Embed::new(args)?;
