@@ -2828,7 +2828,6 @@ dependencies = [
  "hf-hub",
  "hora",
  "kdl",
- "regex",
  "serde",
  "serde_json",
  "tokenizers",
