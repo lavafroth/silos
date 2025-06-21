@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::Path;
+use tracing::debug_span;
 use tree_sitter::{Language, Node, Query, QueryCursor, StreamingIterator};
 
 use anyhow::{Result, bail};
@@ -99,7 +100,7 @@ pub fn apply(
     let mut query_result_map = HashMap::new();
     for mutation in &mutations.mutations {
         let query_result = query(root_node, mutation.expression.as_str(), &lang, source_bytes);
-        // span!(Level::DEBUG, "{:?}", query_result);
+        debug_span!("mutation query expression matched: {query_result:?}");
         split_ats.push(query_result.start);
         split_ats.push(query_result.end);
 
@@ -110,7 +111,7 @@ pub fn apply(
                 Substitute::Capture(attrib) => &query_result.captures[attrib],
             })
         }
-        // span!(Level::DEBUG, "{ast_rewrite:?}");
+        debug_span!("AST rewritten to {ast_rewrite:?}");
 
         query_result_map.insert(query_result.start, ast_rewrite);
     }
