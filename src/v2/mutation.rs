@@ -33,7 +33,9 @@ pub fn from_path<P: AsRef<Path>>(path: P) -> Result<MutationCollection> {
         let node_name = node.name().value();
 
         if node_name != "mutation" && node_name != "description" {
-            bail!("document root must only contain `mutation` or `description` nodes: got {node_name}");
+            bail!(
+                "document root must only contain `mutation` or `description` nodes: got {node_name}"
+            );
         }
 
         if node_name == "description" {
@@ -97,7 +99,7 @@ pub fn apply(
     let mut query_result_map = HashMap::new();
     for mutation in &mutations.mutations {
         let query_result = query(root_node, mutation.expression.as_str(), &lang, source_bytes);
-        eprintln!("{:?}", query_result);
+        // span!(Level::DEBUG, "{:?}", query_result);
         split_ats.push(query_result.start);
         split_ats.push(query_result.end);
 
@@ -108,7 +110,7 @@ pub fn apply(
                 Substitute::Capture(attrib) => &query_result.captures[attrib],
             })
         }
-        eprintln!("{ast_rewrite:?}");
+        // span!(Level::DEBUG, "{ast_rewrite:?}");
 
         query_result_map.insert(query_result.start, ast_rewrite);
     }
@@ -120,11 +122,6 @@ pub fn apply(
         output.push_str(query_result_map.get(i).map(|v| v.as_str()).unwrap_or(split));
     }
     Ok(output)
-}
-
-fn display_s_expr(node: Node<'_>) {
-    let exp = node.to_sexp();
-    eprintln!("{exp:?}");
 }
 
 #[derive(Debug)]

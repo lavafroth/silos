@@ -53,7 +53,7 @@ pub(crate) async fn get_snippet(
 
     let langfn = get_lang(lang)?;
 
-    println!("{prompt:?}");
+    // span!(Level::INFO, "received a prompt {prompt:?}");
 
     let mut appstate = data.inner.lock().map_err(|_| Error::Busy)?;
     let target = appstate
