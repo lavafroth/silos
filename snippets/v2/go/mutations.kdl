@@ -12,14 +12,3 @@ mutation {
 		literal "))"
 	}
 }
-
-mutation {
-	expression """
-	((interpreted_string_literal_content) @str
-	(#eq? @str "/home/h/signal/softiee")
-	) @root
-	"""
-	substitute {
-		literal "/home/softiee/signal/h"
-	}
-}
