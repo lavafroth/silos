@@ -6,6 +6,7 @@ use hora::index::hnsw_idx::HNSWIndex;
 use kdl::KdlDocument;
 use state::State;
 use std::collections::HashMap;
+
 mod embed;
 mod state;
 mod v1;
@@ -46,7 +47,12 @@ impl Args {
 }
 
 fn path_to_parent_base(p: &std::path::Path) -> Result<String> {
-    let Some(parent) = p.parent().and_then(|v| v.to_str()).map(|v| v.to_string()) else {
+    let Some(parent) = p
+        .parent()
+        .and_then(|v| v.file_name())
+        .and_then(|v| v.to_str())
+        .map(|v| v.to_string())
+    else {
         bail!("failed to parse snippets path, make sure the directory structure is valid");
     };
     Ok(parent)
