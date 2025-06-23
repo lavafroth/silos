@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::path::Path;
-use tracing::debug_span;
+use tracing::debug;
 use tree_sitter::{Language, Node, Query, QueryCursor, StreamingIterator};
 
 use anyhow::{Result, bail};
@@ -99,21 +99,22 @@ pub fn apply(
     let mut split_ats = vec![];
     let mut query_result_map = HashMap::new();
     for mutation in &mutations.mutations {
-        let query_result = query(root_node, mutation.expression.as_str(), &lang, source_bytes);
-        debug_span!("mutation query expression matched: {query_result:?}");
-        split_ats.push(query_result.start);
-        split_ats.push(query_result.end);
+        for query_result in query(root_node, mutation.expression.as_str(), &lang, source_bytes) {
+            debug!("mutation query expression matched: {query_result:?}");
+            split_ats.push(query_result.start);
+            split_ats.push(query_result.end);
 
-        let mut ast_rewrite = String::default();
-        for sub in &mutation.substitute {
-            ast_rewrite.push_str(match sub {
-                Substitute::Literal(attrib) => attrib,
-                Substitute::Capture(attrib) => &query_result.captures[attrib],
-            })
+            let mut ast_rewrite = String::default();
+            for sub in &mutation.substitute {
+                ast_rewrite.push_str(match sub {
+                    Substitute::Literal(attrib) => attrib,
+                    Substitute::Capture(attrib) => &query_result.captures[attrib],
+                })
+            }
+            debug!("AST rewritten to {ast_rewrite:?}");
+
+            query_result_map.insert(query_result.start, ast_rewrite);
         }
-        debug_span!("AST rewritten to {ast_rewrite:?}");
-
-        query_result_map.insert(query_result.start, ast_rewrite);
     }
     split_ats.sort();
     let splits = split_at_indices(source_bytes, &split_ats);
@@ -151,19 +152,25 @@ fn split_at_indices<'a>(c: &'a [u8], idx: &[usize]) -> SplitMap<'a> {
     SplitMap { values, indices }
 }
 
-fn query<'a>(node: Node<'a>, expr: &'a str, lang: &Language, source_bytes: &[u8]) -> QueryCooked {
+fn query<'a>(
+    node: Node<'a>,
+    expr: &'a str,
+    lang: &Language,
+    source_bytes: &[u8],
+) -> Vec<QueryCooked> {
     let query = Query::new(lang, expr).unwrap();
 
     let mut qc = QueryCursor::new();
     let mut query_matches = qc.matches(&query, node, source_bytes);
 
     let capture_names = query.capture_names();
-    let mut capture_cooked = HashMap::new();
 
-    let mut start = 0;
-    let mut end = 0;
+    let mut cooked = vec![];
 
-    if let Some(matcha) = query_matches.next() {
+    while let Some(matcha) = query_matches.next() {
+        let mut capture_cooked = HashMap::new();
+        let mut start = 0;
+        let mut end = 0;
         for cap in matcha.captures {
             let Some(name) = capture_names.get(cap.index as usize) else {
                 continue;
@@ -178,11 +185,11 @@ fn query<'a>(node: Node<'a>, expr: &'a str, lang: &Language, source_bytes: &[u8]
                 cap.node.utf8_text(source_bytes).unwrap().to_string(),
             );
         }
+        cooked.push(QueryCooked {
+            start,
+            end,
+            captures: capture_cooked,
+        })
     }
-
-    QueryCooked {
-        start,
-        end,
-        captures: capture_cooked,
-    }
+    cooked
 }

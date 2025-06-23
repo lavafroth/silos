@@ -6,7 +6,6 @@ use hora::index::hnsw_idx::HNSWIndex;
 use kdl::KdlDocument;
 use state::State;
 use std::collections::HashMap;
-use tracing::info_span;
 
 mod embed;
 mod state;

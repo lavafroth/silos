@@ -1,6 +1,6 @@
 use hora::{core::ann_index::ANNIndex, index::hnsw_idx::HNSWIndex};
 use std::collections::HashMap;
-use tracing::info_span;
+use tracing::{error, info};
 use tree_sitter::Parser;
 
 use super::{errors::Error, mutation};
@@ -54,7 +54,7 @@ pub(crate) async fn get_snippet(
 
     let langfn = get_lang(lang)?;
 
-    info_span!("received a prompt: {prompt:?}");
+    info!(prompt = prompt, language = lang, "v2 request");
 
     let mut appstate = data.inner.lock().map_err(|_| Error::Busy)?;
     let target = appstate
@@ -69,7 +69,7 @@ pub(crate) async fn get_snippet(
     let source_code = snippet_request.body.as_str();
     let source_bytes = source_code.as_bytes();
     let tree = parser
-        .parse(&source_code, None)
+        .parse(source_code, None)
         .ok_or(Error::SnippetParsing)?;
     let root_node = tree.root_node();
 
@@ -77,14 +77,23 @@ pub(crate) async fn get_snippet(
     let closest: Vec<String> = appstate.v2.dict[lang]
         .search(&target, snippet_request.top_k.unwrap_or(1))
         .iter()
-        .map(|v| {
-            mutation::apply(
+        .filter_map(|&index| {
+            let applied = mutation::apply(
                 langfn.clone(),
                 source_bytes,
                 root_node,
-                &appstate.v2.mutations_collection[*v],
-            )
-            .expect(&format!("failed to apply mutations from collection {v}"))
+                &appstate.v2.mutations_collection[index],
+            );
+            match applied {
+                Ok(v) => Some(v),
+                Err(e) => {
+                    error!(
+                        collection_index = index,
+                        "failed to apply mutations from collection {}", e
+                    );
+                    None
+                }
+            }
             // TODO: change the expect to a log
         })
         .collect();
