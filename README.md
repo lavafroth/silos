@@ -4,7 +4,9 @@ Dumb, proomptable modular snippet search.
 
 ## Getting started
 
-### Installation
+There are no binary releases yet.
+
+### From source
 
 Prerequisites:
 
@@ -18,21 +20,6 @@ git clone https://github.com/lavafroth/silos
 cd silos
 ```
 
-### Setup
-
-Add your code snippets as KDL files in the `./snippets/v1/LANGUAGE/` directory, Take a look at the example snippet for golang in `./snippets/v1/go/simple_worker.kdl`.
-
-The snippets must conform to the following structure:
-
-``` kdl
-desc "a well articulated description of the snippet",
-body #"fn main() { println!("The body of the snippet") }"#
-```
-
-KDL supports arbitrary raw strings with as many `#`s before and after the quotes to disambiguate them from the string contents.
-
-After adding your snippets, run the server
-
 ``` sh
 cargo r
 ```
@@ -41,31 +28,94 @@ cargo r
 >
 > Embedding defaults to using the CPU. You may use the `--gpu` flag with a GPU number to use a dedicated GPU.
 
-### Usage
-
 An HTTP REST API listens on port 8000 and can be queried for code snippets.
 
-#### Query a snippet
+### v1 API
 
-``` sh
-curl http://localhost:8000/api/v1/get --json '{ "desc": "channeled worker in go" }'
+V1 snippets are stored in the KDL format on a per-language basis in directories under `./snippets/v1`. They must conform to the following structure
+
+``` kdl
+desc "describes the snippet"
+body #"the snippet itself"#
 ```
 
-You must add the "in someLanguage" suffix to your query's description field. This is to keep the API design simple for bothIDE and non-IDE users.
+KDL supports arbitrary raw strings with as many `#`s before and after the quotes to disambiguate them from the string contents.
 
-#### Add a snippet
+See the example snippet `./snippets/v1/go/simple_worker.kdl` in the go programming language.
+
+#### Querying
+
+We recommend the `jo` CLI to easily generate JSON payloads for the API.
+
+``` sh
+jo desc="channeled worker in go" \
+curl http://localhost:8000/api/v1/get --json @-
+```
+
+You must add the "in someLanguage" suffix to your query's description field. This was a bad design choice and will be deprecated in a later release.
+
+#### Adding a snippet
 
 ``` sh
 curl http://localhost:8000/api/v1/add --json \
 '{ "desc": "Build an asynchronous shared mutable state", "lang": "rust", "body": "let object = Arc::new(Mutex::new(old));" }'
 ```
 
-## v2 API
+### v2 API
 
-Language grammar parsing with abstract syntax tree manipulation support.
+The v2 API leverages tree-sitter to parse code into an AST (Abstract Syntax Tree) and perform subsequent mutations on the code.
 
-Coming soon
+#### Defining mutation collections
 
-## TODOs
+``` kdl
+description "describes the mutation collection"
+mutation {
+  expression "(some ((beautiful) @adjective) AST expression) @root"
+  substitute {
+    literal "hello"
+    capture "adjective"
+    literal "world"
+  }
+}
 
-- [ ] Create an LSP to add the suffix based on filetype.
+mutation {
+  expression "(another) @root"
+  substitute {
+    literal "multiple mutations work"
+    literal "as long as their expression"
+    literal "don't collide"
+  }
+}
+```
+
+- `description`: A textual description of the mutation collection.
+- `mutation`:  Defines individual code changes.
+  - `expression`: Uses tree-sitter to match and capture AST nodes with `@` prefixes.
+  - `substitute`:  Constructs the modified code using literals and captured arguments.
+  - `@root`:  Every mutation *must* annotate the root of the AST. Another bad design choice. Will be deprecated soon.
+
+See the example mutation collection in `./snippets/v2/go/mutations.kdl`.
+
+#### Querying
+
+``` sh
+jo body=@examples/example.go \
+desc='change the current filepath to the parent filepath in go' \
+| curl http://localhost:8000/api/v2/get --json @-
+```
+
+V2 queries have the following fields
+
+- `desc`: Description of the query.
+- `body`:  The code to be parsed and modified.
+
+The API performs a single-pass substitution based on the closest matching mutation. Captured groups (using `@`) are used within the `substitute` block and the mutated code is returned in the response JSON `body` field.
+
+**Further reading**
+
+- [tree-sitter query snytax](https://tree-sitter.github.io/tree-sitter/using-parsers/queries/1-syntax.html) to create mutation `expression`s.
+- [jo](https://github.com/jpmens/jo) to build the JSON body from a file.
+
+## Coming soon
+
+An LSP to provide Silos code actions for a given selection.
