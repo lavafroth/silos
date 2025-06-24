@@ -70,7 +70,7 @@ The v2 API leverages tree-sitter to parse code into an AST (Abstract Syntax Tree
 ``` kdl
 description "describes the mutation collection"
 mutation {
-  expression "(some ((beautiful) @adjective) AST expression) @root"
+  expression "some ((beautiful) @adjective) AST expression"
   substitute {
     literal "hello"
     capture "adjective"
@@ -79,7 +79,7 @@ mutation {
 }
 
 mutation {
-  expression "(another) @root"
+  expression "another"
   substitute {
     literal "multiple mutations work"
     literal "as long as their expression"
@@ -90,9 +90,8 @@ mutation {
 
 - `description`: A textual description of the mutation collection.
 - `mutation`:  Defines individual code changes.
-  - `expression`: Uses tree-sitter to match and capture AST nodes with `@` prefixes.
+  - `expression`: Uses tree-sitter to match and capture AST nodes with `@` prefixes, The special `@root` node is reserved for the entire expression.
   - `substitute`:  Constructs the modified code using literals and captured arguments.
-  - `@root`:  Every mutation *must* annotate the root of the AST. Another bad design choice. Will be deprecated soon.
 
 See the example mutation collection in `./snippets/v2/go/mutations.kdl`.
 
@@ -109,11 +108,11 @@ V2 queries have the following fields
 - `desc`: Description of the query.
 - `body`:  The code to be parsed and modified.
 
-The API performs a single-pass substitution based on the closest matching mutation. Captured groups (using `@`) are used within the `substitute` block and the mutated code is returned in the response JSON `body` field.
+The API performs a single-pass substitution based on the closest matching mutation. Captured groups are used within the `substitute` block and the mutated code is returned in the response JSON `body` field.
 
 **Further reading**
 
-- [tree-sitter query snytax](https://tree-sitter.github.io/tree-sitter/using-parsers/queries/1-syntax.html) to create mutation `expression`s.
+- [tree-sitter query snytax](https://tree-sitter.github.io/tree-sitter/using-parsers/queries/1-syntax.html) to create mutation expressions.
 - [jo](https://github.com/jpmens/jo) to build the JSON body from a file.
 
 ## Coming soon

@@ -72,7 +72,7 @@ pub fn from_path<P: AsRef<Path>>(path: P) -> Result<MutationCollection> {
             substitute.push(substitutor);
         }
 
-        let expression = expression.to_string();
+        let expression = format!("({expression}) @root");
 
         mutations.push(Mutation {
             expression,
