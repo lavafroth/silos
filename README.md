@@ -32,7 +32,7 @@ An HTTP REST API listens on port 8000 and can be queried for code snippets.
 
 ### v1 API
 
-V1 snippets are stored in the KDL format on a per-language basis in directories under `./snippets/v1`. They must conform to the following structure
+V1 snippets are stored in the KDL format inside per-language directories under `./snippets/v1`. They must conform to the following structure
 
 ``` kdl
 desc "describes the snippet"
@@ -64,6 +64,12 @@ curl http://localhost:8000/api/v1/add --json \
 ### v2 API
 
 The v2 API leverages tree-sitter to parse code into an AST (Abstract Syntax Tree) and perform subsequent mutations on the code.
+
+#### Supported Languages
+
+- C
+- Rust
+- Go
 
 #### Defining mutation collections
 
