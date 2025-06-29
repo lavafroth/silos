@@ -33,7 +33,7 @@ pub struct Snippet {
     body: String,
 }
 
-fn get_lang(s: &str) -> Result<tree_sitter::Language, Error> {
+pub fn get_lang(s: &str) -> Result<tree_sitter::Language, Error> {
     Ok(match s {
         "go" => tree_sitter_go::LANGUAGE,
         "c" => tree_sitter_c::LANGUAGE,

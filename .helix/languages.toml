@@ -1,0 +1,6 @@
+[language-server.silos]
+command = "./target/debug/silos"
+
+[[language]]
+name = "go"
+language-servers = [ { name = "silos" } ]
