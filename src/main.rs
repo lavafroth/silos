@@ -23,6 +23,7 @@ mod v2;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
+    /// The mode to run the server in. Defaults to LSP. The HTTP REST API can be run by specifying `http` or `http:port`. For example: `http:7047`
     mode: Option<String>,
 
     /// Run on the Nth GPU device.
@@ -36,10 +37,11 @@ struct Args {
     /// Revision or branch.
     #[arg(long)]
     revision: Option<String>,
+}
 
-    /// The port for the API to listen on
-    #[arg(long, default_value = "8000")]
-    port: u16,
+pub enum RunMode {
+    Http(u16),
+    Lsp,
 }
 
 impl Args {
@@ -53,6 +55,23 @@ impl Args {
             (None, Some(revision)) => (default_model, revision),
             (None, None) => (default_model, default_revision),
         }
+    }
+    fn mode(&self) -> RunMode {
+        let Some(http) = &self.mode else {
+            return RunMode::Lsp;
+        };
+        if http == "http" {
+            return RunMode::Http(8000);
+        }
+        let Some(port) = http.strip_prefix("http:") else {
+            return RunMode::Lsp;
+        };
+
+        let Ok(port) = port.parse() else {
+            return RunMode::Lsp;
+        };
+
+        RunMode::Http(port)
     }
 }
 
@@ -72,8 +91,7 @@ fn path_to_parent_base(p: &std::path::Path) -> Result<String> {
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
     let args = Args::parse();
-    let port = args.port;
-    let mode = args.mode.clone();
+    let mode = args.mode();
     let mut embed = embed::Embed::new(args)?;
     let mut dict = HashMap::default();
 
@@ -150,8 +168,8 @@ async fn main() -> Result<()> {
 
     let appstate_wrapped = web::Data::new(appstate.build());
 
-    if mode.is_some_and(|v| v == "http") {
-        HttpServer::new(move || {
+    if let RunMode::Http(port) = mode {
+        return HttpServer::new(move || {
             App::new()
                 .app_data(appstate_wrapped.clone())
                 .service(v1::api::get_snippet)
@@ -161,19 +179,19 @@ async fn main() -> Result<()> {
         .bind(("127.0.0.1", port))?
         .run()
         .await
-        .map_err(E::from)
-    } else {
-        let stdin = tokio::io::stdin();
-        let stdout = tokio::io::stdout();
+        .map_err(E::from);
+    };
 
-        let (service, socket) = LspService::new(|client| Backend {
-            client,
-            body: Arc::new(Mutex::new(String::default())),
-            appstate: appstate_wrapped.clone(),
-        });
-        Server::new(stdin, stdout, socket).serve(service).await;
-        Ok(())
-    }
+    let stdin = tokio::io::stdin();
+    let stdout = tokio::io::stdout();
+
+    let (service, socket) = LspService::new(|client| Backend {
+        client,
+        body: Arc::new(Mutex::new(String::default())),
+        appstate: appstate_wrapped.clone(),
+    });
+    Server::new(stdin, stdout, socket).serve(service).await;
+    Ok(())
 }
 
 struct Backend {
@@ -259,7 +277,6 @@ impl LanguageServer for Backend {
         let Some((desc, _after)) = after.split_once("\n") else {
             return Ok(None);
         };
-        
 
         let Some((prompt, lang)) = desc.rsplit_once(" in ") else {
             error!("{}", v2::errors::Error::MissingSuffix);
