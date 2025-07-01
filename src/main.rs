@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use actix_web::web::Data;
 use actix_web::{App, HttpServer, web};
 use anyhow::{Context, Error as E, Result, bail};
@@ -9,70 +7,17 @@ use hora::index::hnsw_idx::HNSWIndex;
 use kdl::KdlDocument;
 use state::{State, StateWrapper};
 use std::collections::HashMap;
+use std::sync::Arc;
 use tokio::sync::Mutex;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 use tracing::error;
 
+mod args;
 mod embed;
 mod state;
 mod v1;
 mod v2;
-
-#[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
-struct Args {
-    /// The mode to run the server in. Defaults to LSP. The HTTP REST API can be run by specifying `http` or `http:port`. For example: `http:7047`
-    mode: Option<String>,
-
-    /// Run on the Nth GPU device.
-    #[arg(long)]
-    gpu: Option<usize>,
-
-    /// The model to use, check out available models: https://huggingface.co/models?library=sentence-transformers&sort=trending
-    #[arg(long)]
-    model_id: Option<String>,
-
-    /// Revision or branch.
-    #[arg(long)]
-    revision: Option<String>,
-}
-
-pub enum RunMode {
-    Http(u16),
-    Lsp,
-}
-
-impl Args {
-    fn resolve_model_and_revision(&self) -> (String, String) {
-        let default_model = "sentence-transformers/all-MiniLM-L6-v2".to_string();
-        let default_revision = "refs/pr/21".to_string();
-
-        match (self.model_id.clone(), self.revision.clone()) {
-            (Some(model_id), Some(revision)) => (model_id, revision),
-            (Some(model_id), None) => (model_id, "main".to_owned()),
-            (None, Some(revision)) => (default_model, revision),
-            (None, None) => (default_model, default_revision),
-        }
-    }
-    fn mode(&self) -> RunMode {
-        let Some(http) = &self.mode else {
-            return RunMode::Lsp;
-        };
-        if http == "http" {
-            return RunMode::Http(8000);
-        }
-        let Some(port) = http.strip_prefix("http:") else {
-            return RunMode::Lsp;
-        };
-
-        let Ok(port) = port.parse() else {
-            return RunMode::Lsp;
-        };
-
-        RunMode::Http(port)
-    }
-}
 
 fn path_to_parent_base(p: &std::path::Path) -> Result<String> {
     let Some(parent) = p
@@ -89,9 +34,10 @@ fn path_to_parent_base(p: &std::path::Path) -> Result<String> {
 #[actix_web::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
-    let args = Args::parse();
+    let args = args::Args::parse();
     let mode = args.mode();
-    let mut embed = embed::Embed::new(args)?;
+    let (model_id, revision) = args.resolve_model_and_revision();
+    let mut embed = embed::Embed::new(args.gpu, &model_id, &revision)?;
     let mut dict = HashMap::default();
 
     let paths = glob::glob("./snippets/v1/*/*.kdl")?;
@@ -167,7 +113,7 @@ async fn main() -> Result<()> {
 
     let appstate_wrapped = web::Data::new(appstate.build());
 
-    if let RunMode::Http(port) = mode {
+    if let args::RunMode::Http(port) = mode {
         return HttpServer::new(move || {
             App::new()
                 .app_data(appstate_wrapped.clone())
