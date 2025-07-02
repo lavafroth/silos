@@ -13,12 +13,48 @@ Prerequisites:
 - libc
 - [rust toolchain](https://rustup.rs)
 
-Clone this repository and enter it
+Clone this repository and build it.
 
 ``` sh
 git clone https://github.com/lavafroth/silos
 cd silos
+cargo build
 ```
+
+### LSP
+
+v2.0.0 and above will default to `silos` running as an LSP.
+
+Mutations are defined in the same scheme as the HTTP API. Check out those details below. Point your editor or IDE to the resultant binary `./target/debug/silos`.
+
+#### Editor support
+
+- Helix: There's a demo `.helix` directory provided with this project that uses the LSP for `./examples/example.go`.
+- Neovim: Please follow [the official guide](https://neovim.io/doc/user/lsp.html).
+- VSCode: I dunno it's too complicated, feel free to send me a PR.
+
+#### Usage
+
+- Write a comment above a paragraph of code, consider the example in examples/example.go
+
+``` go
+  resumeFilename := "resume.pdf"
+  version := 3
+  // silos: change the file basename to that of the parent
+  whereIsMyResume :=
+    filepath.Base(
+      documentsDirectory + "CV" + "_v" + strconv.Itoa(version) + "/" + resumeFilename)
+```
+
+The comment must follow the format `silos: ...` as shown.
+
+- Select the code to be modified along with the comment above it.
+- Trigger code actions. In helix, this is `space`, `a`.
+- Select the option called "ask silos."
+
+### HTTP APIs
+
+To run silos as an HTTP API, supply an additional `http` argument.
 
 ``` sh
 cargo r http
@@ -30,7 +66,7 @@ cargo r http
 
 An HTTP REST API listens on port 8000 and can be queried for code snippets.
 
-### v1 API
+### /api/v1
 
 V1 snippets are stored in the KDL format inside per-language directories under `./snippets/v1`. They must conform to the following structure
 
@@ -61,9 +97,9 @@ curl http://localhost:8000/api/v1/add --json \
 '{ "desc": "Build an asynchronous shared mutable state", "lang": "rust", "body": "let object = Arc::new(Mutex::new(old));" }'
 ```
 
-### v2 API
+### /api/v2
 
-The v2 API leverages tree-sitter to parse code into an AST (Abstract Syntax Tree) and perform subsequent mutations on the code.
+This API parses code into an AST (Abstract Syntax Tree) via tree-sitter and can perform subsequent mutations.
 
 #### Supported Languages
 
@@ -120,7 +156,3 @@ The API performs a single-pass substitution based on the closest matching mutati
 
 - [tree-sitter query snytax](https://tree-sitter.github.io/tree-sitter/using-parsers/queries/1-syntax.html) to create mutation expressions.
 - [jo](https://github.com/jpmens/jo) to build the JSON body from a file.
-
-## Coming soon
-
-An LSP to provide Silos code actions for a given selection.
