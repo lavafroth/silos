@@ -2,7 +2,9 @@
 
 Dumb, proomptable modular snippet search.
 
-## Getting started
+## Installation
+
+### Binary releases
 
 There are no binary releases yet.
 
@@ -21,19 +23,19 @@ cd silos
 cargo build
 ```
 
-### LSP
+## LSP
 
 v2.0.0 and above will default to `silos` running as an LSP.
 
 Mutations are defined in the same scheme as the HTTP API. Check out those details below. Point your editor or IDE to the resultant binary `./target/debug/silos`.
 
-#### Editor support
+### Editor support
 
 - Helix: There's a demo `.helix` directory provided with this project that uses the LSP for `./examples/example.go`.
 - Neovim: Please follow [the official guide](https://neovim.io/doc/user/lsp.html).
 - VSCode: I dunno it's too complicated, feel free to send me a PR.
 
-#### Usage
+### Usage
 
 - Write a comment above a paragraph of code, consider the example in examples/example.go
 
@@ -52,7 +54,7 @@ The comment must follow the format `silos: ...` as shown.
 - Trigger code actions. In helix, this is `space`, `a`.
 - Select the option called "ask silos."
 
-### HTTP APIs
+## HTTP APIs
 
 To run silos as an HTTP API, supply an additional `http` argument.
 
@@ -79,9 +81,9 @@ KDL supports arbitrary raw strings with as many `#`s before and after the quotes
 
 See the example snippet `./snippets/v1/go/simple_worker.kdl` in the go programming language.
 
-#### Querying
+#### Querying snippets
 
-We recommend the `jo` CLI to easily generate JSON payloads for the API.
+The `jo` CLI is recommended to easily generate JSON payloads for the API.
 
 ``` sh
 jo desc="channeled worker in go" \
@@ -90,7 +92,7 @@ curl http://localhost:8000/api/v1/get --json @-
 
 You must add the "in someLanguage" suffix to your query's description field. This was a bad design choice and will be deprecated in a later release.
 
-#### Adding a snippet
+#### Adding snippets
 
 ``` sh
 curl http://localhost:8000/api/v1/add --json \
@@ -137,7 +139,7 @@ mutation {
 
 See the example mutation collection in `./snippets/v2/go/mutations.kdl`.
 
-#### Querying
+#### Querying mutations
 
 ``` sh
 jo body=@examples/example.go \
