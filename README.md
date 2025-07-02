@@ -21,7 +21,7 @@ cd silos
 ```
 
 ``` sh
-cargo r
+cargo r http
 ```
 
 > [!NOTE]

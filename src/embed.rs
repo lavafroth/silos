@@ -1,4 +1,3 @@
-use super::Args;
 use anyhow::{Error as E, Result};
 use candle_core::Device;
 use candle_core::Tensor;
@@ -15,16 +14,15 @@ pub struct Embed {
 }
 
 impl Embed {
-    pub(crate) fn new(args: Args) -> Result<Self> {
-        let device = if let Some(gpu_dev) = args.gpu {
+    pub(crate) fn new(gpu: Option<usize>, model_id: &str, revision: &str) -> Result<Self> {
+        let device = if let Some(gpu_dev) = gpu {
             Device::new_cuda(gpu_dev)?
         } else {
             Device::Cpu
         };
 
-        let (model_id, revision) = args.resolve_model_and_revision();
         let (config_path, tokenizer_path, weights_path) =
-            Self::download_model_files(&model_id, &revision)?;
+            Self::download_model_files(model_id, revision)?;
 
         let config = std::fs::read_to_string(config_path)?;
         let config: Config = serde_json::from_str(&config)?;

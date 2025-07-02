@@ -33,7 +33,7 @@ pub struct Snippet {
     body: String,
 }
 
-fn get_lang(s: &str) -> Result<tree_sitter::Language, Error> {
+pub fn get_lang(s: &str) -> Result<tree_sitter::Language, Error> {
     Ok(match s {
         "go" => tree_sitter_go::LANGUAGE,
         "c" => tree_sitter_c::LANGUAGE,
@@ -52,6 +52,23 @@ pub(crate) async fn get_snippet(
         return Err(Error::MissingSuffix);
     };
 
+    let closest = closest_mutation(
+        lang,
+        prompt,
+        snippet_request.body.as_str(),
+        snippet_request.top_k.unwrap_or(1),
+        &data,
+    )?;
+    Ok(web::Json(closest))
+}
+
+pub fn closest_mutation(
+    lang: &str,
+    prompt: &str,
+    body: &str,
+    top_k: usize,
+    data: &web::Data<crate::state::StateWrapper>,
+) -> Result<Vec<String>, Error> {
     let langfn = get_lang(lang)?;
 
     info!(prompt = prompt, language = lang, "v2 request");
@@ -66,7 +83,7 @@ pub(crate) async fn get_snippet(
         .set_language(&langfn)
         .map_err(|_| Error::UnknownLang)?;
 
-    let source_code = snippet_request.body.as_str();
+    let source_code = body;
     let source_bytes = source_code.as_bytes();
     let tree = parser
         .parse(source_code, None)
@@ -74,8 +91,8 @@ pub(crate) async fn get_snippet(
     let root_node = tree.root_node();
 
     // search for k nearest neighbors
-    let closest: Vec<String> = appstate.v2.dict[lang]
-        .search(&target, snippet_request.top_k.unwrap_or(1))
+    let collected = appstate.v2.dict[lang]
+        .search(&target, top_k)
         .iter()
         .filter_map(|&index| {
             let applied = mutation::apply(
@@ -97,5 +114,5 @@ pub(crate) async fn get_snippet(
             // TODO: change the expect to a log
         })
         .collect();
-    Ok(web::Json(closest))
+    Ok(collected)
 }

@@ -1,50 +1,21 @@
 use actix_web::{App, HttpServer, web};
 use anyhow::{Context, Error as E, Result, bail};
 use clap::Parser;
-use hora::core::ann_index::ANNIndex;
+use hora::core::{ann_index::ANNIndex, metrics::Metric::Euclidean};
 use hora::index::hnsw_idx::HNSWIndex;
 use kdl::KdlDocument;
-use state::State;
+use state::{State, StateWrapper};
 use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use tower_lsp::{LspService, Server};
 
+mod args;
 mod embed;
+mod lsp;
 mod state;
 mod v1;
 mod v2;
-
-#[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
-struct Args {
-    /// Run on the Nth GPU device.
-    #[arg(long)]
-    gpu: Option<usize>,
-
-    /// The model to use, check out available models: https://huggingface.co/models?library=sentence-transformers&sort=trending
-    #[arg(long)]
-    model_id: Option<String>,
-
-    /// Revision or branch.
-    #[arg(long)]
-    revision: Option<String>,
-
-    /// The port for the API to listen on
-    #[arg(long, default_value = "8000")]
-    port: u16,
-}
-
-impl Args {
-    fn resolve_model_and_revision(&self) -> (String, String) {
-        let default_model = "sentence-transformers/all-MiniLM-L6-v2".to_string();
-        let default_revision = "refs/pr/21".to_string();
-
-        match (self.model_id.clone(), self.revision.clone()) {
-            (Some(model_id), Some(revision)) => (model_id, revision),
-            (Some(model_id), None) => (model_id, "main".to_owned()),
-            (None, Some(revision)) => (default_model, revision),
-            (None, None) => (default_model, default_revision),
-        }
-    }
-}
 
 fn path_to_parent_base(p: &std::path::Path) -> Result<String> {
     let Some(parent) = p
@@ -61,9 +32,10 @@ fn path_to_parent_base(p: &std::path::Path) -> Result<String> {
 #[actix_web::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
-    let args = Args::parse();
-    let port = args.port;
-    let mut embed = embed::Embed::new(args)?;
+    let args = args::Args::parse();
+    let mode = args.mode();
+    let (model_id, revision) = args.resolve_model_and_revision();
+    let mut embed = embed::Embed::new(args.gpu, &model_id, &revision)?;
     let mut dict = HashMap::default();
 
     let paths = glob::glob("./snippets/v1/*/*.kdl")?;
@@ -123,9 +95,7 @@ async fn main() -> Result<()> {
     }
 
     for index in v2_dict.values_mut() {
-        index
-            .build(hora::core::metrics::Metric::Euclidean)
-            .map_err(E::msg)?;
+        index.build(Euclidean).map_err(E::msg)?;
     }
 
     let appstate = State {
@@ -139,15 +109,28 @@ async fn main() -> Result<()> {
 
     let appstate_wrapped = web::Data::new(appstate.build());
 
-    HttpServer::new(move || {
-        App::new()
-            .app_data(appstate_wrapped.clone())
-            .service(v1::api::get_snippet)
-            .service(v1::api::add_snippet)
-            .service(v2::api::get_snippet)
-    })
-    .bind(("127.0.0.1", port))?
-    .run()
-    .await
-    .map_err(E::from)
+    if let args::RunMode::Http(port) = mode {
+        return HttpServer::new(move || {
+            App::new()
+                .app_data(appstate_wrapped.clone())
+                .service(v1::api::get_snippet)
+                .service(v1::api::add_snippet)
+                .service(v2::api::get_snippet)
+        })
+        .bind(("127.0.0.1", port))?
+        .run()
+        .await
+        .map_err(E::from);
+    };
+
+    let stdin = tokio::io::stdin();
+    let stdout = tokio::io::stdout();
+
+    let (service, socket) = LspService::new(|client| lsp::Backend {
+        client,
+        body: Arc::new(Mutex::new(String::default())),
+        appstate: appstate_wrapped.clone(),
+    });
+    Server::new(stdin, stdout, socket).serve(service).await;
+    Ok(())
 }
