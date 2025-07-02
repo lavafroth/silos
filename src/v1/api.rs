@@ -1,4 +1,4 @@
-use hora::core::ann_index::ANNIndex;
+use hora::core::{ann_index::ANNIndex, metrics::Metric::Euclidean};
 use std::collections::HashMap;
 
 use super::errors::Error;
@@ -63,21 +63,19 @@ pub(crate) async fn add_snippet(
     let Ok(mut appstate) = data.inner.lock() else {
         return Err(Error::Busy);
     };
-    let Ok(embedding) = appstate.embed.embed(&snippet.desc) else {
-        return Err(Error::EmbedFailed);
-    };
+    let embedding = appstate
+        .embed
+        .embed(&snippet.desc)
+        .map_err(|_| Error::EmbedFailed)?;
     let index = appstate
         .v1
         .dict
         .entry(snippet.lang.clone())
-        .or_insert_with(|| {
-            let dimension = 384;
-            let params = hora::index::hnsw_params::HNSWParams::<f32>::default();
-
-            HNSWIndex::<f32, String>::new(dimension, &params)
-        });
-    index.add(&embedding, snippet.body.clone()).unwrap();
-    index.build(hora::core::metrics::Metric::Euclidean).unwrap();
+        .or_insert_with(|| HNSWIndex::<f32, String>::new(384, &Default::default()));
+    index
+        .add(&embedding, snippet.body.clone())
+        .map_err(|_| Error::EmbedFailed)?;
+    index.build(Euclidean).map_err(|_| Error::EmbedFailed)?;
 
     Ok(format!(
         "{} {} {}",
