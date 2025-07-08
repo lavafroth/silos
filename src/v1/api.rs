@@ -38,7 +38,17 @@ pub(crate) async fn get_snippet(
     let Some((prompt, lang)) = snippet_request.desc.rsplit_once(" in ") else {
         return Err(Error::MissingSuffix);
     };
+    let closest = search(lang, prompt, snippet_request.top_k.unwrap_or(1), &data)?;
+    Ok(web::Json(closest))
+}
 
+pub(crate) fn search(
+    lang: &str,
+    prompt: &str,
+    top_k: usize,
+    data: &web::Data<crate::state::StateWrapper>,
+) -> Result<Vec<String>, Error> {
+   
     let Ok(mut appstate) = data.inner.lock() else {
         return Err(Error::Busy);
     };
@@ -51,8 +61,7 @@ pub(crate) async fn get_snippet(
         return Err(Error::UnknownLang);
     };
     // search for k nearest neighbors
-    let closest = snippets_for_lang.search(&target, snippet_request.top_k.unwrap_or(1));
-    Ok(web::Json(closest))
+    Ok(snippets_for_lang.search(&target, top_k))
 }
 
 #[post("/api/v1/add")]

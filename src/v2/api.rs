@@ -52,7 +52,7 @@ pub(crate) async fn get_snippet(
         return Err(Error::MissingSuffix);
     };
 
-    let closest = closest_mutation(
+    let closest = search(
         lang,
         prompt,
         snippet_request.body.as_str(),
@@ -62,7 +62,7 @@ pub(crate) async fn get_snippet(
     Ok(web::Json(closest))
 }
 
-pub fn closest_mutation(
+pub fn search(
     lang: &str,
     prompt: &str,
     body: &str,

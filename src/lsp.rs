@@ -1,12 +1,10 @@
-use crate::StateWrapper;
-use crate::v2;
+use crate::{v2, v1, StateWrapper};
 use actix_web::web::Data;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer};
-use tracing::error;
 
 pub struct Backend {
     pub client: Client,
@@ -84,7 +82,7 @@ impl LanguageServer for Backend {
         let extension = url_extension(&uri);
         let body = self.body.lock().await.to_string();
 
-        let range = params.range;
+        let mut range = params.range;
         let selected_text = string_range_index(&body, range);
 
         let Some(comment) = ParsedAction::new(selected_text) else {
@@ -107,10 +105,19 @@ impl LanguageServer for Backend {
 
         let closest_matches = match comment.action {
             Action::Generate => {
-                return Ok(None);
+                range.start = range.end;
+                match v1::api::search(&lang, prompt, 1, &self.appstate) {
+                    Ok(v) => v.into_iter().map(|s| format!("{s}\n")).collect(),
+                    Err(e) => {
+                        self.client
+                            .log_message(MessageType::ERROR, format!("{}", e))
+                            .await;
+                        return Ok(None);
+                    }
+                }
             }
             Action::Refactor => {
-                match v2::api::closest_mutation(&lang, prompt, &selected_text, 1, &self.appstate) {
+                match v2::api::search(&lang, prompt, selected_text, 1, &self.appstate) {
                     Ok(v) => v,
                     Err(e) => {
                         self.client
