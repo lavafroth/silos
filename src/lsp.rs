@@ -85,44 +85,51 @@ impl LanguageServer for Backend {
         let body = self.body.lock().await.to_string();
 
         let range = params.range;
-        let new_text = string_range_index(&body, range);
-        let Some((_before, after)) = new_text.split_once("silos: ") else {
-            return Ok(None);
-        };
-        let Some((desc, _after)) = after.split_once("\n") else {
+        let selected_text = string_range_index(&body, range);
+
+        let Some(comment) = ParsedAction::new(selected_text) else {
             return Ok(None);
         };
 
         let (prompt, lang) = if let Some(ext) = extension {
-            (desc, ext)
-        } else if let Some((prompt, lang)) = desc.rsplit_once(" in ") {
+            (comment.description, ext)
+        } else if let Some((prompt, lang)) = comment.description.rsplit_once(" in ") {
             (prompt, lang.to_string())
         } else {
-            error!("{}", v2::errors::Error::MissingSuffix);
+            self.client
+                .log_message(
+                    MessageType::ERROR,
+                    format!("{}", v2::errors::Error::MissingSuffix),
+                )
+                .await;
             return Ok(None);
         };
 
-        let closest_matches =
-            match v2::api::closest_mutation(&lang, prompt, &body, 1, &self.appstate) {
-                Ok(v) => v,
-                Err(e) => {
-                    error!("{}", e);
-                    return Ok(None);
+        let closest_matches = match comment.action {
+            Action::Generate => {
+                return Ok(None);
+            }
+            Action::Refactor => {
+                match v2::api::closest_mutation(&lang, prompt, &selected_text, 1, &self.appstate) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        self.client
+                            .log_message(MessageType::ERROR, format!("{}", e))
+                            .await;
+                        return Ok(None);
+                    }
                 }
-            };
+            }
+        };
 
-        let Some(closest) = closest_matches.into_iter().next() else {
+        let Some(new_text) = closest_matches.into_iter().next() else {
             return Ok(None);
         };
-        let text_edit = TextEdit {
-            range,
-            new_text: closest,
-        };
+        let text_edit = TextEdit { range, new_text };
         let changes: HashMap<Url, _> = [(uri, vec![text_edit])].into_iter().collect();
         let edit = Some(WorkspaceEdit {
             changes: Some(changes),
-            document_changes: None,
-            change_annotations: None,
+            ..Default::default()
         });
         let actions = vec![CodeActionOrCommand::CodeAction(CodeAction {
             title: "ask silos".to_string(),
@@ -130,6 +137,40 @@ impl LanguageServer for Backend {
             ..Default::default()
         })];
         Ok(Some(actions))
+    }
+}
+
+pub struct ParsedAction<'a> {
+    action: Action,
+    description: &'a str,
+}
+
+pub enum Action {
+    Generate,
+    Refactor,
+}
+
+impl<'a> ParsedAction<'a> {
+    fn new(comment: &'a str) -> Option<ParsedAction<'a>> {
+        let upto_newline = match comment.rsplit_once("\n") {
+            Some((upto_newline, _discard)) => upto_newline,
+            None => comment,
+        };
+        let maybe_generate =
+            upto_newline
+                .split_once("generate: ")
+                .map(|(_discard, description)| ParsedAction {
+                    action: Action::Generate,
+                    description,
+                });
+        let maybe_refactor =
+            upto_newline
+                .split_once("refactor: ")
+                .map(|(_discard, description)| ParsedAction {
+                    action: Action::Refactor,
+                    description,
+                });
+        maybe_generate.or(maybe_refactor)
     }
 }
 
