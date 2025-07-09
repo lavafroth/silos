@@ -8,9 +8,16 @@ use hf_hub::RepoType;
 use hf_hub::api::sync::Api;
 use std::path::PathBuf;
 use tokenizers::Tokenizer;
+use tokenizers::TokenizerImpl;
+use tokenizers::ModelWrapper;
+use tokenizers::NormalizerWrapper;
+use tokenizers::PreTokenizerWrapper;
+use tokenizers::PostProcessorWrapper;
+use tokenizers::DecoderWrapper;
+
 pub struct Embed {
     model: BertModel,
-    tokenizer: Tokenizer,
+    tokenizer: TokenizerImpl<ModelWrapper, NormalizerWrapper, PreTokenizerWrapper, PostProcessorWrapper, DecoderWrapper>,
 }
 
 impl Embed {
@@ -26,10 +33,15 @@ impl Embed {
 
         let config = std::fs::read_to_string(config_path)?;
         let config: Config = serde_json::from_str(&config)?;
-        let tokenizer = Tokenizer::from_file(tokenizer_path).map_err(E::msg)?;
+        let mut tokenizer = Tokenizer::from_file(tokenizer_path).map_err(E::msg)?;
 
         let vb = unsafe { VarBuilder::from_mmaped_safetensors(&[weights_path], DTYPE, &device)? };
         let model = BertModel::load(vb, &config)?;
+
+        let tokenizer = tokenizer
+            .with_padding(None)
+            .with_truncation(None)
+            .map_err(E::msg)?.clone();
 
         Ok(Embed { model, tokenizer })
     }
@@ -45,14 +57,8 @@ impl Embed {
         Ok((config, tokenizer, weights))
     }
 
-    pub(crate) fn embed(&mut self, prompt: &str) -> Result<Vec<f32>> {
-        let tokenizer = self
-            .tokenizer
-            .with_padding(None)
-            .with_truncation(None)
-            .map_err(E::msg)?;
-
-        let tokens = tokenizer
+    pub(crate) fn embed(&self, prompt: &str) -> Result<Vec<f32>> {
+        let tokens = self.tokenizer
             .encode(prompt, true)
             .map_err(E::msg)?
             .get_ids()

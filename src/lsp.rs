@@ -1,5 +1,3 @@
-use crate::{StateWrapper, v1, v2};
-use actix_web::web::Data;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -9,7 +7,7 @@ use tower_lsp::{Client, LanguageServer};
 pub struct Backend {
     pub client: Client,
     pub body: Arc<Mutex<String>>,
-    pub appstate: Data<StateWrapper>,
+    pub appstate: crate::State,
 }
 
 fn string_range_index(s: &str, r: Range) -> &str {
@@ -95,12 +93,12 @@ impl LanguageServer for Backend {
         let action_response = match comment.action {
             Action::Generate => {
                 range.start = range.end;
-                v1::api::search(&lang, comment.description, 1, &self.appstate)
+                self.appstate.generate(&lang, comment.description, 1)
                     .map(|v| v.into_iter().map(|s| format!("{s}\n")).collect())
                     .map_err(|e| e.to_string())
             }
             Action::Refactor => {
-                v2::api::search(&lang, comment.description, selected_text, 1, &self.appstate)
+                self.appstate.refactor(&lang, comment.description, selected_text, 1)
                     .map_err(|e| e.to_string())
             }
         };
