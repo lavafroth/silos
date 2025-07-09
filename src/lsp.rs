@@ -1,4 +1,4 @@
-use crate::{v2, v1, StateWrapper};
+use crate::{StateWrapper, v1, v2};
 use actix_web::web::Data;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -12,7 +12,7 @@ pub struct Backend {
     pub appstate: Data<StateWrapper>,
 }
 
-pub fn string_range_index(s: &str, r: Range) -> &str {
+fn string_range_index(s: &str, r: Range) -> &str {
     let mut newline_count = 0;
     let mut start = None;
     let mut end = None;
@@ -42,11 +42,9 @@ impl LanguageServer for Backend {
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
                     TextDocumentSyncKind::FULL,
                 )),
-                code_action_provider: Some(
-                    tower_lsp::lsp_types::CodeActionProviderCapability::Options(
-                        CodeActionOptions::default(),
-                    ),
-                ),
+                code_action_provider: Some(CodeActionProviderCapability::Options(
+                    CodeActionOptions::default(),
+                )),
                 ..Default::default()
             },
             ..Default::default()
@@ -89,11 +87,7 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
 
-        let (prompt, lang) = if let Some(ext) = extension {
-            (comment.description, ext)
-        } else if let Some((prompt, lang)) = comment.description.rsplit_once(" in ") {
-            (prompt, lang.to_string())
-        } else {
+        let Some(lang) = extension else {
             self.client
                 .log_message(
                     MessageType::ERROR,
@@ -103,29 +97,26 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
 
-        let closest_matches = match comment.action {
+        let action_response = match comment.action {
             Action::Generate => {
                 range.start = range.end;
-                match v1::api::search(&lang, prompt, 1, &self.appstate) {
-                    Ok(v) => v.into_iter().map(|s| format!("{s}\n")).collect(),
-                    Err(e) => {
-                        self.client
-                            .log_message(MessageType::ERROR, format!("{}", e))
-                            .await;
-                        return Ok(None);
-                    }
-                }
+                v1::api::search(&lang, comment.description, 1, &self.appstate)
+                    .map(|v| v.into_iter().map(|s| format!("{s}\n")).collect())
+                    .map_err(|e| e.to_string())
             }
             Action::Refactor => {
-                match v2::api::search(&lang, prompt, selected_text, 1, &self.appstate) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        self.client
-                            .log_message(MessageType::ERROR, format!("{}", e))
-                            .await;
-                        return Ok(None);
-                    }
-                }
+                v2::api::search(&lang, comment.description, selected_text, 1, &self.appstate)
+                    .map_err(|e| e.to_string())
+            }
+        };
+
+        let closest_matches = match action_response {
+            Ok(v) => v,
+            Err(e) => {
+                self.client
+                    .log_message(MessageType::ERROR, e.to_string())
+                    .await;
+                return Ok(None);
             }
         };
 
