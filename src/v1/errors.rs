@@ -9,8 +9,6 @@ use serde_json::json;
 pub enum Error {
     #[display("the server is busy. come back later.")]
     Busy,
-    #[display("end your request with ` in somelang`.")]
-    MissingSuffix,
     #[display("failed to embed your prompt.")]
     EmbedFailed,
     #[display("snippets were requested for an unknown language")]
@@ -31,7 +29,7 @@ impl error::ResponseError for Error {
     fn status_code(&self) -> StatusCode {
         match *self {
             Self::EmbedFailed => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::MissingSuffix | Self::UnknownLang => StatusCode::BAD_REQUEST,
+            Self::UnknownLang => StatusCode::BAD_REQUEST,
             Self::Busy => StatusCode::GATEWAY_TIMEOUT,
         }
     }

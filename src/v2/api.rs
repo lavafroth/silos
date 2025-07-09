@@ -17,6 +17,7 @@ pub struct State {
 pub struct SnippetRequest {
     desc: String,
     body: String,
+    lang: String,
     top_k: Option<usize>,
 }
 
@@ -33,11 +34,11 @@ pub struct Snippet {
     body: String,
 }
 
-pub fn get_lang(s: &str) -> Result<tree_sitter::Language, Error> {
+fn get_lang(s: &str) -> Result<tree_sitter::Language, Error> {
     Ok(match s {
         "go" => tree_sitter_go::LANGUAGE,
         "c" => tree_sitter_c::LANGUAGE,
-        "rust" => tree_sitter_rust::LANGUAGE,
+        "rs" => tree_sitter_rust::LANGUAGE,
         _ => return Err(Error::UnknownLang),
     }
     .into())
@@ -48,13 +49,9 @@ pub(crate) async fn get_snippet(
     data: web::Data<crate::state::StateWrapper>,
     snippet_request: web::Json<SnippetRequest>,
 ) -> Result<impl Responder, Error> {
-    let Some((prompt, lang)) = snippet_request.desc.rsplit_once(" in ") else {
-        return Err(Error::MissingSuffix);
-    };
-
     let closest = search(
-        lang,
-        prompt,
+        &snippet_request.lang,
+        &snippet_request.desc,
         snippet_request.body.as_str(),
         snippet_request.top_k.unwrap_or(1),
         &data,

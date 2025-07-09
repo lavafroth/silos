@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
 pub struct SnippetRequest {
+    lang: String,
     desc: String,
     top_k: Option<usize>,
 }
@@ -35,11 +36,12 @@ pub(crate) async fn get_snippet(
     data: web::Data<crate::state::StateWrapper>,
     snippet_request: web::Json<SnippetRequest>,
 ) -> Result<impl Responder, Error> {
-    let Some((prompt, lang)) = snippet_request.desc.rsplit_once(" in ") else {
-        return Err(Error::MissingSuffix);
-    };
-    let closest = search(lang, prompt, snippet_request.top_k.unwrap_or(1), &data)?;
-    Ok(web::Json(closest))
+    Ok(web::Json(search(
+        &snippet_request.lang,
+        &snippet_request.desc,
+        snippet_request.top_k.unwrap_or(1),
+        &data,
+    )?))
 }
 
 pub(crate) fn search(
@@ -48,7 +50,6 @@ pub(crate) fn search(
     top_k: usize,
     data: &web::Data<crate::state::StateWrapper>,
 ) -> Result<Vec<String>, Error> {
-   
     let Ok(mut appstate) = data.inner.lock() else {
         return Err(Error::Busy);
     };
@@ -80,7 +81,7 @@ pub(crate) async fn add_snippet(
         .v1
         .dict
         .entry(snippet.lang.clone())
-        .or_insert_with(|| HNSWIndex::<f32, String>::new(384, &Default::default()));
+        .or_insert_with(|| HNSWIndex::new(384, &Default::default()));
     index
         .add(&embedding, snippet.body.clone())
         .map_err(|_| Error::EmbedFailed)?;

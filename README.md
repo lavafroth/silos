@@ -86,11 +86,9 @@ See the example snippet `./snippets/v1/go/simple_worker.kdl` in the go programmi
 The `jo` CLI is recommended to easily generate JSON payloads for the API.
 
 ``` sh
-jo desc="channeled worker in go" \
+jo desc="channeled worker" lang="go" \
 curl http://localhost:8000/api/v1/get --json @-
 ```
-
-You must add the "in someLanguage" suffix to your query's description field. This was a bad design choice and will be deprecated in a later release.
 
 #### Adding snippets
 
@@ -142,8 +140,8 @@ See the example mutation collection in `./snippets/v2/go/mutations.kdl`.
 #### Querying mutations
 
 ``` sh
-jo body=@examples/example.go \
-desc='change the current filepath to the parent filepath in go' \
+jo body=@examples/example.go lang='go' \
+desc='change the current filepath to the parent filepath' \
 | curl http://localhost:8000/api/v2/get --json @-
 ```
 

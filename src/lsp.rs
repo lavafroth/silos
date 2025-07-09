@@ -77,23 +77,18 @@ impl LanguageServer for Backend {
         params: CodeActionParams,
     ) -> tower_lsp::jsonrpc::Result<Option<CodeActionResponse>> {
         let uri = params.text_document.uri;
-        let extension = url_extension(&uri);
-        let body = self.body.lock().await.to_string();
+        let Some(lang) = url_extension(&uri) else {
+            self.client
+                .log_message(MessageType::ERROR, "unable to determine filetype, file has no extension")
+                .await;
+            return Ok(None);
+        };
 
+        let body = self.body.lock().await.to_string();
         let mut range = params.range;
         let selected_text = string_range_index(&body, range);
 
         let Some(comment) = ParsedAction::new(selected_text) else {
-            return Ok(None);
-        };
-
-        let Some(lang) = extension else {
-            self.client
-                .log_message(
-                    MessageType::ERROR,
-                    format!("{}", v2::errors::Error::MissingSuffix),
-                )
-                .await;
             return Ok(None);
         };
 
