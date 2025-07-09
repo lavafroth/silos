@@ -42,14 +42,15 @@ Mutations are defined in the same scheme as the HTTP API. Check out those detail
 ``` go
   resumeFilename := "resume.pdf"
   version := 3
-  // silos: change the file basename to that of the parent
+  // refactor: change the file basename to that of the parent
   whereIsMyResume :=
     filepath.Base(
       documentsDirectory + "CV" + "_v" + strconv.Itoa(version) + "/" + resumeFilename)
 ```
 
-The comment must follow the format `silos: ...` as shown.
-
+- The comment must begin with either of
+  - `generate: `
+  - `refactor: `
 - Select the code to be modified along with the comment above it.
 - Trigger code actions. In helix, this is `space`, `a`.
 - Select the option called "ask silos."
