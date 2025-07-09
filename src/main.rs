@@ -37,18 +37,16 @@ async fn main() -> Result<()> {
     let (model_id, revision) = args.resolve_model_and_revision();
     let mut embed = embed::Embed::new(args.gpu, &model_id, &revision)?;
     let mut dict = HashMap::default();
+    let dimensions = 384;
 
     let paths = glob::glob("./snippets/v1/*/*.kdl")?;
     for path in paths {
         let path = path?;
         let parent = path_to_parent_base(&path)?;
 
-        let current_lang_index = dict.entry(parent).or_insert_with(|| {
-            let dimension = 384;
-            let params = hora::index::hnsw_params::HNSWParams::<f32>::default();
-
-            HNSWIndex::<f32, String>::new(dimension, &params)
-        });
+        let current_lang_index = dict
+            .entry(parent)
+            .or_insert_with(|| HNSWIndex::new(dimensions, &Default::default()));
 
         let doc_str = std::fs::read_to_string(&path)?;
         let doc: KdlDocument = doc_str
@@ -72,7 +70,7 @@ async fn main() -> Result<()> {
             .map_err(E::msg)?;
     }
 
-    // v2 stuff
+    // v2
     let paths = glob::glob("./snippets/v2/*/*.kdl")?;
     let mut v2_dict = HashMap::new();
     let mut v2_mutations_collection = vec![];
@@ -81,12 +79,9 @@ async fn main() -> Result<()> {
         let parent = path_to_parent_base(&path)?;
 
         let mutations = v2::mutation::from_path(path)?;
-        let current_lang_index = v2_dict.entry(parent).or_insert_with(|| {
-            let dimension = 384;
-            let params = hora::index::hnsw_params::HNSWParams::<f32>::default();
-
-            HNSWIndex::<f32, usize>::new(dimension, &params)
-        });
+        let current_lang_index = v2_dict
+            .entry(parent)
+            .or_insert_with(|| HNSWIndex::new(dimensions, &Default::default()));
 
         current_lang_index
             .add(&embed.embed(&mutations.description)?, i)
