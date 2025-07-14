@@ -34,7 +34,7 @@ async fn main() -> Result<()> {
     let (model_id, revision) = args.resolve_model_and_revision();
     let embed = embed::Embed::new(args.gpu, &model_id, &revision)?;
     let mut dict = HashMap::default();
-    let dimensions = 384;
+    let dimensions = embed.hidden_size;
 
     let paths = glob::glob(&format!("{}/generate/*/*.kdl", args.snippets))?;
     for path in paths {

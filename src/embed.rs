@@ -7,17 +7,24 @@ use hf_hub::Repo;
 use hf_hub::RepoType;
 use hf_hub::api::sync::Api;
 use std::path::PathBuf;
-use tokenizers::Tokenizer;
-use tokenizers::TokenizerImpl;
+use tokenizers::DecoderWrapper;
 use tokenizers::ModelWrapper;
 use tokenizers::NormalizerWrapper;
-use tokenizers::PreTokenizerWrapper;
 use tokenizers::PostProcessorWrapper;
-use tokenizers::DecoderWrapper;
+use tokenizers::PreTokenizerWrapper;
+use tokenizers::Tokenizer;
+use tokenizers::TokenizerImpl;
 
 pub struct Embed {
     model: BertModel,
-    tokenizer: TokenizerImpl<ModelWrapper, NormalizerWrapper, PreTokenizerWrapper, PostProcessorWrapper, DecoderWrapper>,
+    pub hidden_size: usize,
+    tokenizer: TokenizerImpl<
+        ModelWrapper,
+        NormalizerWrapper,
+        PreTokenizerWrapper,
+        PostProcessorWrapper,
+        DecoderWrapper,
+    >,
 }
 
 impl Embed {
@@ -41,9 +48,14 @@ impl Embed {
         let tokenizer = tokenizer
             .with_padding(None)
             .with_truncation(None)
-            .map_err(E::msg)?.clone();
+            .map_err(E::msg)?
+            .clone();
 
-        Ok(Embed { model, tokenizer })
+        Ok(Embed {
+            model,
+            tokenizer,
+            hidden_size: config.hidden_size,
+        })
     }
 
     fn download_model_files(model_id: &str, revision: &str) -> Result<(PathBuf, PathBuf, PathBuf)> {
@@ -58,7 +70,8 @@ impl Embed {
     }
 
     pub(crate) fn embed(&self, prompt: &str) -> Result<Vec<f32>> {
-        let tokens = self.tokenizer
+        let tokens = self
+            .tokenizer
             .encode(prompt, true)
             .map_err(E::msg)?
             .get_ids()
@@ -68,9 +81,11 @@ impl Embed {
         let token_type_ids = token_ids.zeros_like()?;
 
         let embeddings = self.model.forward(&token_ids, &token_type_ids, None)?;
-        let (_n_sentence, n_tokens, _hidden_size) = embeddings.dims3()?;
+        let (_n_sentence, n_tokens, hidden_size) = embeddings.dims3()?;
         let embeddings = (embeddings.sum(1)? / (n_tokens as f64))?;
-        let embeddings = normalize_l2(&embeddings)?.reshape(384)?.to_vec1::<f32>()?;
+        let embeddings = normalize_l2(&embeddings)?
+            .reshape(hidden_size)?
+            .to_vec1::<f32>()?;
         Ok(embeddings)
     }
 }
