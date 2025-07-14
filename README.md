@@ -33,7 +33,9 @@ Mutations are defined in the same scheme as the HTTP API. Check out those detail
 
 - Helix: There's a demo `.helix` directory provided with this project that uses the LSP for `./examples/example.go`.
 - Neovim: Please follow [the official guide](https://neovim.io/doc/user/lsp.html).
-- VSCode: I dunno it's too complicated, feel free to send me a PR.
+- VSCode: Use the [vscode-lspconfig](https://marketplace.visualstudio.com/items?itemName=whtsht.vscode-lspconfig) extension with the `.vscode/settings.json` provided.
+
+Make sure to modify the binary path in the example to where you have it on your system.
 
 ### Usage
 
@@ -55,23 +57,14 @@ Mutations are defined in the same scheme as the HTTP API. Check out those detail
 - Trigger code actions. In helix, this is `space`, `a`.
 - Select the option called "ask silos."
 
-## HTTP APIs
-
-To run silos as an HTTP API, supply an additional `http` argument.
-
-``` sh
-cargo r http
-```
-
 > [!NOTE]
 >
 > Embedding defaults to using the CPU. You may use the `--gpu` flag with a GPU number to use a dedicated GPU.
 
-An HTTP REST API listens on port 8000 and can be queried for code snippets.
+### `generate` snippets
 
-### /api/v1
-
-V1 snippets are stored in the KDL format inside per-language directories under `./snippets/v1`. They must conform to the following structure
+- Stored in the KDL format inside per-language directories under `./snippets/v1`.
+- They must conform to the following structure
 
 ``` kdl
 desc "describes the snippet"
@@ -82,23 +75,7 @@ KDL supports arbitrary raw strings with as many `#`s before and after the quotes
 
 See the example snippet `./snippets/v1/go/simple_worker.kdl` in the go programming language.
 
-#### Querying snippets
-
-The `jo` CLI is recommended to easily generate JSON payloads for the API.
-
-``` sh
-jo desc="channeled worker" lang="go" \
-curl http://localhost:8000/api/v1/get --json @-
-```
-
-#### Adding snippets
-
-``` sh
-curl http://localhost:8000/api/v1/add --json \
-'{ "desc": "Build an asynchronous shared mutable state", "lang": "rust", "body": "let object = Arc::new(Mutex::new(old));" }'
-```
-
-### /api/v2
+### `refactor` snippets
 
 This API parses code into an AST (Abstract Syntax Tree) via tree-sitter and can perform subsequent mutations.
 
@@ -138,22 +115,9 @@ mutation {
 
 See the example mutation collection in `./snippets/v2/go/mutations.kdl`.
 
-#### Querying mutations
-
-``` sh
-jo body=@examples/example.go lang='go' \
-desc='change the current filepath to the parent filepath' \
-| curl http://localhost:8000/api/v2/get --json @-
-```
-
-V2 queries have the following fields
-
-- `desc`: Description of the query.
-- `body`:  The code to be parsed and modified.
-
-The API performs a single-pass substitution based on the closest matching mutation. Captured groups are used within the `substitute` block and the mutated code is returned in the response JSON `body` field.
+- The API performs a single-pass substitution based on the closest matching mutation.
+- Captured groups are used within the `substitute` block and the mutated code is returned.
 
 **Further reading**
 
 - [tree-sitter query snytax](https://tree-sitter.github.io/tree-sitter/using-parsers/queries/1-syntax.html) to create mutation expressions.
-- [jo](https://github.com/jpmens/jo) to build the JSON body from a file.
