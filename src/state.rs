@@ -1,10 +1,10 @@
+use crate::mutation;
 use derive_more::Display;
 use derive_more::Error;
-use tree_sitter::Parser;
-use std::collections::HashMap;
-use hora::index::hnsw_idx::HNSWIndex;
 use hora::core::ann_index::ANNIndex;
-use crate::mutation;
+use hora::index::hnsw_idx::HNSWIndex;
+use std::collections::HashMap;
+use tree_sitter::Parser;
 
 #[derive(Debug, Display, Error)]
 pub enum Error {
@@ -68,7 +68,8 @@ impl Refactor {
                     Err(e) => {
                         tracing::error!(
                             collection_index = index,
-                            "failed to apply mutations from collection {}", e
+                            "failed to apply mutations from collection {}",
+                            e
                         );
                         None
                     }
@@ -79,7 +80,7 @@ impl Refactor {
     }
 }
 pub struct Generate {
-    pub dict: HashMap<String, HNSWIndex<f32, String>>
+    pub dict: HashMap<String, HNSWIndex<f32, String>>,
 }
 
 impl Generate {
@@ -99,7 +100,6 @@ pub struct State {
 }
 
 impl State {
-    
     pub fn generate(&self, lang: &str, prompt: &str, top_k: usize) -> Result<Vec<String>, Error> {
         let Ok(target) = self.embed.embed(prompt) else {
             return Err(Error::EmbedFailed);
@@ -108,7 +108,13 @@ impl State {
         self.generate.search(lang, &target, top_k)
     }
 
-    pub fn refactor(&self, lang: &str, prompt: &str, body: &str, top_k: usize) -> Result<Vec<String>, Error> {
+    pub fn refactor(
+        &self,
+        lang: &str,
+        prompt: &str,
+        body: &str,
+        top_k: usize,
+    ) -> Result<Vec<String>, Error> {
         let Ok(target) = self.embed.embed(prompt) else {
             return Err(Error::EmbedFailed);
         };

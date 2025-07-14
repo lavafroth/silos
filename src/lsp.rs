@@ -77,7 +77,10 @@ impl LanguageServer for Backend {
         let uri = params.text_document.uri;
         let Some(lang) = url_extension(&uri) else {
             self.client
-                .log_message(MessageType::ERROR, "unable to determine filetype, file has no extension")
+                .log_message(
+                    MessageType::ERROR,
+                    "unable to determine filetype, file has no extension",
+                )
                 .await;
             return Ok(None);
         };
@@ -93,14 +96,15 @@ impl LanguageServer for Backend {
         let action_response = match comment.action {
             Action::Generate => {
                 range.start = range.end;
-                self.appstate.generate(&lang, comment.description, 1)
+                self.appstate
+                    .generate(&lang, comment.description, 1)
                     .map(|v| v.into_iter().map(|s| format!("{s}\n")).collect())
                     .map_err(|e| e.to_string())
             }
-            Action::Refactor => {
-                self.appstate.refactor(&lang, comment.description, selected_text, 1)
-                    .map_err(|e| e.to_string())
-            }
+            Action::Refactor => self
+                .appstate
+                .refactor(&lang, comment.description, selected_text, 1)
+                .map_err(|e| e.to_string()),
         };
 
         let closest_matches = match action_response {
