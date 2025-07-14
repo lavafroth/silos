@@ -18,26 +18,18 @@ Prerequisites:
 Clone this repository and build it.
 
 ``` sh
-git clone https://github.com/lavafroth/silos
-cd silos
-cargo build
+cargo install --git https://github.com/lavafroth/silos
 ```
 
-## LSP
+## Editor support
 
-v2.0.0 and above will default to `silos` running as an LSP.
-
-Mutations are defined in the same scheme as the HTTP API. Check out those details below. Point your editor or IDE to the resultant binary `./target/debug/silos`.
-
-### Editor support
-
-- Helix: There's a demo `.helix` directory provided with this project that uses the LSP for `./examples/example.go`.
+- Helix: Use the example `.helix` directory provided to run the LSP for files under `./examples/`.
 - Neovim: Please follow [the official guide](https://neovim.io/doc/user/lsp.html).
 - VSCode: Use the [vscode-lspconfig](https://marketplace.visualstudio.com/items?itemName=whtsht.vscode-lspconfig) extension with the `.vscode/settings.json` provided.
 
 Make sure to modify the binary path in the example to where you have it on your system.
 
-### Usage
+## Usage
 
 - Write a comment above a paragraph of code, consider the example in examples/example.go
 
@@ -61,7 +53,7 @@ Make sure to modify the binary path in the example to where you have it on your 
 >
 > Embedding defaults to using the CPU. You may use the `--gpu` flag with a GPU number to use a dedicated GPU.
 
-### `generate` snippets
+## `generate` snippets
 
 - Stored in the KDL format inside per-language directories under `./snippets/v1`.
 - They must conform to the following structure
@@ -75,17 +67,17 @@ KDL supports arbitrary raw strings with as many `#`s before and after the quotes
 
 See the example snippet `./snippets/v1/go/simple_worker.kdl` in the go programming language.
 
-### `refactor` snippets
+## `refactor` snippets
 
 This API parses code into an AST (Abstract Syntax Tree) via tree-sitter and can perform subsequent mutations.
 
-#### Supported Languages
+### Supported Languages
 
 - C
 - Rust
 - Go
 
-#### Defining mutation collections
+### Defining mutation collections
 
 ``` kdl
 description "describes the mutation collection"
