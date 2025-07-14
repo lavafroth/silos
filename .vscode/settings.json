@@ -1,0 +1,15 @@
+{
+    "vscode-lspconfig.serverConfigurations": [
+        {
+            "name": "silos",
+            "document_selector": [
+                {
+                    "language": "go"
+                }
+            ],
+            "command": [
+                "./target/release/silos"
+            ]
+        }
+    ]
+}
