@@ -12,8 +12,8 @@ use tower_lsp::{LspService, Server};
 mod args;
 mod embed;
 mod lsp;
-mod state;
 mod mutation;
+mod state;
 
 fn path_to_parent_base(p: &std::path::Path) -> Result<String> {
     let Some(parent) = p
@@ -36,7 +36,7 @@ async fn main() -> Result<()> {
     let mut dict = HashMap::default();
     let dimensions = 384;
 
-    let paths = glob::glob("./snippets/v1/*/*.kdl")?;
+    let paths = glob::glob(&format!("{}/generate/*/*.kdl", args.snippets))?;
     for path in paths {
         let path = path?;
         let parent = path_to_parent_base(&path)?;
@@ -67,26 +67,25 @@ async fn main() -> Result<()> {
             .map_err(E::msg)?;
     }
 
-    // v2
-    let paths = glob::glob("./snippets/v2/*/*.kdl")?;
-    let mut v2_dict = HashMap::new();
-    let mut v2_mutations_collection = vec![];
+    let paths = glob::glob(&format!("{}/refactor/*/*.kdl", args.snippets))?;
+    let mut refactor_dict = HashMap::new();
+    let mut mutations_collection = vec![];
     for (i, path) in paths.enumerate() {
         let path = path?;
         let parent = path_to_parent_base(&path)?;
 
         let mutations = mutation::from_path(path)?;
-        let current_lang_index = v2_dict
+        let current_lang_index = refactor_dict
             .entry(parent)
             .or_insert_with(|| HNSWIndex::new(dimensions, &Default::default()));
 
         current_lang_index
             .add(&embed.embed(&mutations.description)?, i)
             .map_err(E::msg)?;
-        v2_mutations_collection.push(mutations);
+        mutations_collection.push(mutations);
     }
 
-    for index in v2_dict.values_mut() {
+    for index in refactor_dict.values_mut() {
         index.build(Euclidean).map_err(E::msg)?;
     }
 
@@ -94,8 +93,8 @@ async fn main() -> Result<()> {
         embed,
         generate: state::Generate { dict },
         refactor: state::Refactor {
-            dict: v2_dict,
-            mutations_collection: v2_mutations_collection,
+            dict: refactor_dict,
+            mutations_collection,
         },
     };
 
@@ -105,7 +104,7 @@ async fn main() -> Result<()> {
     let (service, socket) = LspService::new(|client| lsp::Backend {
         client,
         body: Arc::new(Mutex::new(String::default())),
-        appstate
+        appstate,
     });
     Server::new(stdin, stdout, socket).serve(service).await;
     Ok(())

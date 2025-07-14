@@ -14,6 +14,10 @@ pub(crate) struct Args {
     /// Revision or branch.
     #[arg(long)]
     pub(crate) revision: Option<String>,
+
+    /// Path to the directory containing `generate` and `refactor` snippets.
+    #[arg(long, default_value = "./snippets")]
+    pub(crate) snippets: String,
 }
 
 impl Args {
