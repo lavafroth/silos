@@ -1,5 +1,5 @@
 [language-server.silos]
-command = "./target/debug/silos"
+command = "silos"
 
 [[language]]
 name = "go"
