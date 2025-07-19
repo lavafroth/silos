@@ -1,4 +1,4 @@
-use anyhow::{Context, Error as E, Result, bail};
+use anyhow::{Context, Error as E, Result};
 use clap::Parser;
 use hora::core::{ann_index::ANNIndex, metrics::Metric::Euclidean};
 use hora::index::hnsw_idx::HNSWIndex;
@@ -14,18 +14,7 @@ mod embed;
 mod lsp;
 mod mutation;
 mod state;
-
-fn path_to_parent_base(p: &std::path::Path) -> Result<String> {
-    let Some(parent) = p
-        .parent()
-        .and_then(|v| v.file_name())
-        .and_then(|v| v.to_str())
-        .map(|v| v.to_string())
-    else {
-        bail!("failed to parse snippets path, make sure the directory structure is valid");
-    };
-    Ok(parent)
-}
+mod sources;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -36,29 +25,27 @@ async fn main() -> Result<()> {
     let mut dict = HashMap::default();
     let dimensions = embed.hidden_size;
 
-    let paths = glob::glob(&format!("{}/generate/*/*.kdl", args.snippets))?;
-    for path in paths {
-        let path = path?;
-        let parent = path_to_parent_base(&path)?;
+    for (language, paths) in sources::rule_files(args.snippets.join("generate"))? {
+        for path in paths {
+            let current_lang_index = dict
+                .entry(language.clone())
+                .or_insert_with(|| HNSWIndex::new(dimensions, &Default::default()));
 
-        let current_lang_index = dict
-            .entry(parent)
-            .or_insert_with(|| HNSWIndex::new(dimensions, &Default::default()));
+            let doc_str = std::fs::read_to_string(&path)?;
+            let doc: KdlDocument = doc_str
+                .parse()
+                .context(format!("failed to parse KDL: {}", path.display()))?;
 
-        let doc_str = std::fs::read_to_string(&path)?;
-        let doc: KdlDocument = doc_str
-            .parse()
-            .context(format!("failed to parse KDL: {}", path.display()))?;
-
-        let Some(desc) = doc.get_arg("desc").and_then(|v| v.as_string()) else {
-            continue;
-        };
-        let Some(body) = doc.get_arg("body").and_then(|v| v.as_string()) else {
-            continue;
-        };
-        current_lang_index
-            .add(&embed.embed(desc)?, body.to_string())
-            .map_err(E::msg)?;
+            let Some(desc) = doc.get_arg("desc").and_then(|v| v.as_string()) else {
+                continue;
+            };
+            let Some(body) = doc.get_arg("body").and_then(|v| v.as_string()) else {
+                continue;
+            };
+            current_lang_index
+                .add(&embed.embed(desc)?, body.to_string())
+                .map_err(E::msg)?;
+        }
     }
 
     for index in dict.values_mut() {
@@ -67,36 +54,34 @@ async fn main() -> Result<()> {
             .map_err(E::msg)?;
     }
 
-    let paths = glob::glob(&format!("{}/refactor/*/*.kdl", args.snippets))?;
     let mut refactor_dict = HashMap::new();
     let mut mutations_collection = vec![];
-    for (i, path) in paths.enumerate() {
-        let path = path?;
-        let parent = path_to_parent_base(&path)?;
+    for (language, paths) in sources::rule_files(args.snippets.join("refactor"))? {
+        for path in paths {
+            let mutations = mutation::from_path(path)?;
+            let current_lang_index = refactor_dict
+                .entry(language.clone())
+                .or_insert_with(|| HNSWIndex::new(dimensions, &Default::default()));
 
-        let mutations = mutation::from_path(path)?;
-        let current_lang_index = refactor_dict
-            .entry(parent)
-            .or_insert_with(|| HNSWIndex::new(dimensions, &Default::default()));
-
-        current_lang_index
-            .add(&embed.embed(&mutations.description)?, i)
-            .map_err(E::msg)?;
-        mutations_collection.push(mutations);
+            current_lang_index
+                .add(&embed.embed(&mutations.description)?, mutations_collection.len())
+                .map_err(E::msg)?;
+            mutations_collection.push(mutations);
+        }
     }
 
     for index in refactor_dict.values_mut() {
         index.build(Euclidean).map_err(E::msg)?;
     }
 
-    let appstate = State {
+    let appstate = State::new(
         embed,
-        generate: state::Generate { dict },
-        refactor: state::Refactor {
+        state::Generate { dict },
+        state::Refactor {
             dict: refactor_dict,
             mutations_collection,
         },
-    };
+    );
 
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();

@@ -93,13 +93,19 @@ impl Generate {
 }
 
 pub struct State {
-    // TODO: create new constructor and private these fields
-    pub embed: crate::embed::Embed,
-    pub generate: Generate,
-    pub refactor: Refactor,
+    embed: crate::embed::Embed,
+    generate: Generate,
+    refactor: Refactor,
 }
 
 impl State {
+    pub fn new(embed: crate::embed::Embed, generate: Generate, refactor: Refactor) -> Self {
+        Self {
+            embed,
+            generate,
+            refactor,
+        }
+    }
     pub fn generate(&self, lang: &str, prompt: &str, top_k: usize) -> Result<Vec<String>, Error> {
         let Ok(target) = self.embed.embed(prompt) else {
             return Err(Error::EmbedFailed);
