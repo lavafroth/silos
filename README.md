@@ -2,6 +2,8 @@
 
 Dumb, proomptable modular snippet search.
 
+![preview](./assets/preview.gif)
+
 ## Installation
 
 ### Binary releases
