@@ -6,7 +6,7 @@ use tower_lsp::{Client, LanguageServer};
 
 pub struct Backend {
     pub client: Client,
-    pub body: Arc<Mutex<String>>,
+    pub body: Arc<Mutex<HashMap<Url, String>>>,
     pub appstate: crate::State,
 }
 
@@ -60,13 +60,12 @@ impl LanguageServer for Backend {
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        // TODO: build an index for multiple documents in workdir
-        *self.body.lock().await = params.text_document.text;
+        self.body.lock().await.insert(params.text_document.uri, params.text_document.text);
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         if let Some(body) = params.content_changes.into_iter().next() {
-            *self.body.lock().await = body.text;
+            self.body.lock().await.insert(params.text_document.uri, body.text);
         }
     }
 
@@ -85,7 +84,10 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
 
-        let body = self.body.lock().await.to_string();
+        let body_locked = self.body.lock().await;
+        let Some(body) = body_locked.get(&uri) else {
+            return Ok(None);
+        };
         let mut range = params.range;
         let selected_text = string_range_index(&body, range);
 

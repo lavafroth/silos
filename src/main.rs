@@ -88,7 +88,7 @@ async fn main() -> Result<()> {
 
     let (service, socket) = LspService::new(|client| lsp::Backend {
         client,
-        body: Arc::new(Mutex::new(String::default())),
+        body: Arc::new(Mutex::new(HashMap::default())),
         appstate,
     });
     Server::new(stdin, stdout, socket).serve(service).await;
