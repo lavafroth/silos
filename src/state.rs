@@ -25,7 +25,9 @@ impl Refactor {
     fn get_lang(s: &str) -> Result<tree_sitter::Language, Error> {
         Ok(match s {
             "go" => tree_sitter_go::LANGUAGE,
-            "c" => tree_sitter_c::LANGUAGE,
+            "c" | "h" => tree_sitter_c::LANGUAGE,
+            "cpp" | "hpp" => tree_sitter_cpp::LANGUAGE,
+            "js" | "ts" => tree_sitter_javascript::LANGUAGE,
             "rs" => tree_sitter_rust::LANGUAGE,
             _ => return Err(Error::UnknownLang),
         }
