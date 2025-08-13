@@ -89,7 +89,7 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
         let mut range = params.range;
-        let selected_text = string_range_index(&body, range);
+        let selected_text = string_range_index(body, range);
 
         let Some(comment) = ParsedAction::new(selected_text) else {
             return Ok(None);
