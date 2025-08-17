@@ -78,6 +78,8 @@ This API parses code into an AST (Abstract Syntax Tree) via tree-sitter and can 
 - C
 - Rust
 - Go
+- Javascript
+- C++
 
 ### Defining mutation collections
 
