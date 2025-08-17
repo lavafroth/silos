@@ -18,6 +18,10 @@ pub(crate) struct Args {
     /// Path to the directory containing `generate` and `refactor` snippets.
     #[arg(long, default_value = "./snippets")]
     pub(crate) snippets: std::path::PathBuf,
+
+    /// Dump the S expression for a given source file
+    #[arg(long)]
+    pub(crate) dump_expression: Option<std::path::PathBuf>,
 }
 
 impl Args {

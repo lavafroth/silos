@@ -3,7 +3,7 @@ use clap::Parser;
 use hora::core::{ann_index::ANNIndex, metrics::Metric::Euclidean};
 use hora::index::hnsw_idx::HNSWIndex;
 use kdl::KdlDocument;
-use state::State;
+use state::{State, dump_expression};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -21,6 +21,12 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
     let args = args::Args::parse();
     let (model_id, revision) = args.resolve_model_and_revision();
+
+    if let Some(source_file) = args.dump_expression {
+        println!("{}", dump_expression(&source_file)?);
+        return Ok(());
+    }
+    
     let embed = embed::Embed::new(args.gpu, &model_id, &revision)?;
     let mut dict = HashMap::default();
     let dimensions = embed.hidden_size;
