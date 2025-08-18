@@ -19,13 +19,23 @@ mod sources;
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
-    let args = args::Args::parse();
+    let args = match args::Cli::parse().command {
+        args::Command::Ast(ast) => {
+            match ast {
+                args::Ast::DumpExpression(source_file) => {
+                    println!("{}", dump_expression(&source_file.path)?);
+                }
+                args::Ast::ShowCaptures(show_captures) => {
+                    println!("{:?}", show_captures)
+                }
+                
+            }
+            return Ok(());
+        },
+        args::Command::Lsp(lsp) => lsp,
+    };
+    
     let (model_id, revision) = args.resolve_model_and_revision();
-
-    if let Some(source_file) = args.dump_expression {
-        println!("{}", dump_expression(&source_file)?);
-        return Ok(());
-    }
     
     let embed = embed::Embed::new(args.gpu, &model_id, &revision)?;
     let mut dict = HashMap::default();

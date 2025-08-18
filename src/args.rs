@@ -1,8 +1,15 @@
-use clap::Parser;
+use clap::{Parser, Subcommand, Args};
+use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
-pub(crate) struct Args {
+pub(crate) struct Cli {
+    #[command(subcommand)]
+    pub command: Command,
+}
+
+#[derive(Args, Debug)]
+pub(crate) struct Lsp {
     /// Run on the Nth GPU device.
     #[arg(long)]
     pub(crate) gpu: Option<usize>,
@@ -18,13 +25,37 @@ pub(crate) struct Args {
     /// Path to the directory containing `generate` and `refactor` snippets.
     #[arg(long, default_value = "./snippets")]
     pub(crate) snippets: std::path::PathBuf,
-
-    /// Dump the S expression for a given source file
-    #[arg(long)]
-    pub(crate) dump_expression: Option<std::path::PathBuf>,
 }
 
-impl Args {
+#[derive(Args, Debug)]
+pub struct DumpExpression {
+    pub path: PathBuf,
+}
+
+#[derive(Args, Debug)]
+pub struct ShowCaptures {
+    pub path: PathBuf,
+    pub expression: String,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum Ast {
+    /// Dump the S expression for a given source file
+    DumpExpression (DumpExpression),
+    /// Show what parts of a source file gets captured by an S expression
+    ShowCaptures(ShowCaptures),
+}
+
+#[derive(Subcommand, Debug)]
+pub enum Command {
+    /// quick actions to dump, modify and verify abstract syntax trees
+    #[command(subcommand)]
+    Ast(Ast),
+    /// spawn a language server for use with a text editor
+    Lsp(Lsp)
+}
+
+impl Lsp {
     pub(crate) fn resolve_model_and_revision(&self) -> (String, String) {
         let default_model = "sentence-transformers/all-MiniLM-L6-v2".to_string();
         let default_revision = "refs/pr/21".to_string();
