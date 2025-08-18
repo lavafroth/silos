@@ -6,9 +6,7 @@ Dumb, proomptable modular snippet search.
 
 ## Installation
 
-### Binary releases
-
-There are no binary releases yet.
+You can download a binary from releases tab or build the project from source.
 
 ### From source
 
