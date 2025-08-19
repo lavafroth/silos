@@ -8,7 +8,7 @@ anyhow = "1.0.98"
 candle-core = "0.9.1"
 candle-nn = "0.9.1"
 candle-transformers = "0.9.1"
-clap = { version = "4.5.41", features = ["derive"] }
+clap = { version = "4.5.45", features = ["derive"] }
 derive_more = { version = "2.0.1", features = ["display", "error"] }
 hf-hub = "0.4.2"
 hora = "0.1.1"
