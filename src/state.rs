@@ -4,8 +4,8 @@ use derive_more::Error;
 use hora::core::ann_index::ANNIndex;
 use hora::index::hnsw_idx::HNSWIndex;
 use std::collections::HashMap;
-use tree_sitter::Parser;
 use std::path::Path;
+use tree_sitter::Parser;
 
 #[derive(Debug, Display, Error)]
 pub enum Error {
@@ -23,7 +23,7 @@ pub struct Refactor {
 }
 
 impl Refactor {
-    fn get_lang(s: &str) -> Result<tree_sitter::Language, Error> {
+    pub fn get_lang(s: &str) -> Result<tree_sitter::Language, Error> {
         Ok(match s {
             "go" => tree_sitter_go::LANGUAGE,
             "c" | "h" => tree_sitter_c::LANGUAGE,

@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand, Args};
+use clap::{Args, Parser, Subcommand};
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
@@ -41,7 +41,7 @@ pub struct ShowCaptures {
 #[derive(Subcommand, Debug)]
 pub enum Ast {
     /// Dump the S expression for a given source file
-    DumpExpression (DumpExpression),
+    DumpExpression(DumpExpression),
     /// Show what parts of a source file gets captured by an S expression
     ShowCaptures(ShowCaptures),
 }
@@ -52,7 +52,7 @@ pub enum Command {
     #[command(subcommand)]
     Ast(Ast),
     /// spawn a language server for use with a text editor
-    Lsp(Lsp)
+    Lsp(Lsp),
 }
 
 impl Lsp {

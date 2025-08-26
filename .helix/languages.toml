@@ -1,6 +1,11 @@
 [language-server.silos]
-command = "silos"
+command = "./target/debug/silos"
+args = ["lsp"]
 
 [[language]]
 name = "go"
-language-servers = [ { name = "silos" } ]
+language-servers = [ { name = "silos" }, "gopls" ]
+
+[[language]]
+name = "rust"
+language-servers = [ ]
