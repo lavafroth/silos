@@ -4,6 +4,7 @@ use derive_more::Error;
 use hora::core::ann_index::ANNIndex;
 use hora::index::hnsw_idx::HNSWIndex;
 use std::collections::HashMap;
+use std::path::Path;
 use tree_sitter::Parser;
 
 #[derive(Debug, Display, Error)]
@@ -22,7 +23,7 @@ pub struct Refactor {
 }
 
 impl Refactor {
-    fn get_lang(s: &str) -> Result<tree_sitter::Language, Error> {
+    pub fn get_lang(s: &str) -> Result<tree_sitter::Language, Error> {
         Ok(match s {
             "go" => tree_sitter_go::LANGUAGE,
             "c" | "h" => tree_sitter_c::LANGUAGE,
@@ -81,6 +82,27 @@ impl Refactor {
         Ok(collected)
     }
 }
+
+pub fn dump_expression(path: &Path) -> Result<String, Error> {
+    let Some(lang) = path.extension() else {
+        return Err(Error::UnknownLang);
+    };
+    let lang = lang.to_str().ok_or(Error::UnknownLang)?;
+    let langfn = Refactor::get_lang(lang)?;
+    let mut parser = Parser::new();
+    parser
+        .set_language(&langfn)
+        .map_err(|_| Error::UnknownLang)?;
+
+    let source_code = std::fs::read_to_string(path).map_err(|_| Error::SnippetParsing)?;
+    let source_bytes = source_code.as_bytes();
+    let tree = parser
+        .parse(source_bytes, None)
+        .ok_or(Error::SnippetParsing)?;
+    let root_node = tree.root_node();
+    Ok(root_node.to_sexp().to_string())
+}
+
 pub struct Generate {
     pub dict: HashMap<String, HNSWIndex<f32, String>>,
 }

@@ -72,10 +72,8 @@ pub fn from_path<P: AsRef<Path>>(path: P) -> Result<MutationCollection> {
             substitute.push(substitutor);
         }
 
-        let expression = format!("({expression}) @root");
-
         mutations.push(Mutation {
-            expression,
+            expression: expression.to_string(),
             substitute,
         })
     }
@@ -127,7 +125,7 @@ pub fn apply(
 }
 
 #[derive(Debug)]
-struct QueryCooked {
+pub struct QueryCooked {
     captures: HashMap<String, String>,
     end: usize,
     start: usize,
@@ -152,7 +150,7 @@ fn split_at_indices<'a>(c: &'a [u8], idx: &[usize]) -> SplitMap<'a> {
     SplitMap { values, indices }
 }
 
-fn query<'a>(
+pub fn query<'a>(
     node: Node<'a>,
     expr: &'a str,
     lang: &Language,
@@ -164,6 +162,7 @@ fn query<'a>(
     let mut query_matches = qc.matches(&query, node, source_bytes);
 
     let capture_names = query.capture_names();
+    // println!("names: {capture_names:#?}");
 
     let mut cooked = vec![];
 
@@ -171,19 +170,36 @@ fn query<'a>(
         let mut capture_cooked = HashMap::new();
         let mut start = 0;
         let mut end = 0;
-        for cap in matcha.captures {
-            let Some(name) = capture_names.get(cap.index as usize) else {
-                continue;
-            };
-            if *name == "root" {
-                start = cap.node.start_byte();
-                end = cap.node.end_byte();
+        if matcha.captures.is_empty() {
+            continue;
+        }
+        //     println!("match {:#?}", matcha.id());
+
+        for (ix, name) in capture_names.iter().enumerate() {
+            let nodes = matcha.nodes_for_capture_index(ix.try_into().unwrap());
+            let mut start_pos = None;
+            let mut end_pos = None;
+            //         println!("matches for {name}");
+            for node in nodes {
+                if start_pos.is_none() {
+                    start_pos.replace(node.start_byte());
+                }
+                end_pos.replace(node.end_byte());
+                //             println!("hit {node:#?}");
+            }
+            if start_pos.or(end_pos).is_none() {
                 continue;
             }
-            capture_cooked.insert(
-                name.to_string(),
-                cap.node.utf8_text(source_bytes).unwrap().to_string(),
-            );
+            if *name == "root" {
+                start = start_pos.unwrap();
+                end = end_pos.unwrap();
+            }
+            let range = start_pos.unwrap()..end_pos.unwrap();
+            //         println!("match range for {name}: {:#?}", range);
+            let text_bytes = &source_bytes[range];
+            let text = std::str::from_utf8(text_bytes).unwrap();
+            //         println!("text: {text}");
+            capture_cooked.insert(name.to_string(), text.to_string());
         }
         cooked.push(QueryCooked {
             start,

@@ -3,7 +3,7 @@ use clap::Parser;
 use hora::core::{ann_index::ANNIndex, metrics::Metric::Euclidean};
 use hora::index::hnsw_idx::HNSWIndex;
 use kdl::KdlDocument;
-use state::State;
+use state::{State, dump_expression};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -13,14 +13,43 @@ mod args;
 mod embed;
 mod lsp;
 mod mutation;
-mod state;
 mod sources;
+mod state;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
-    let args = args::Args::parse();
+    let args = match args::Cli::parse().command {
+        args::Command::Ast(ast) => {
+            match ast {
+                args::Ast::DumpExpression(source_file) => {
+                    println!("{}", dump_expression(&source_file.path)?);
+                }
+                args::Ast::ShowCaptures(show_captures) => {
+                    let source = std::fs::read_to_string(&show_captures.path).unwrap();
+                    let source_bytes = source.as_bytes();
+                    let extension = show_captures.path.extension().unwrap().to_str().unwrap();
+                    let langfn = state::Refactor::get_lang(extension).unwrap();
+                    let mut parser = tree_sitter::Parser::new();
+                    parser.set_language(&langfn).unwrap();
+                    let tree = parser.parse(source_bytes, None).unwrap();
+                    let root_node = tree.root_node();
+                    let cooked = mutation::query(
+                        root_node,
+                        &show_captures.expression,
+                        &langfn,
+                        source_bytes,
+                    );
+                    println!("{:#?}", cooked);
+                }
+            }
+            return Ok(());
+        }
+        args::Command::Lsp(lsp) => lsp,
+    };
+
     let (model_id, revision) = args.resolve_model_and_revision();
+
     let embed = embed::Embed::new(args.gpu, &model_id, &revision)?;
     let mut dict = HashMap::default();
     let dimensions = embed.hidden_size;
@@ -64,7 +93,10 @@ async fn main() -> Result<()> {
                 .or_insert_with(|| HNSWIndex::new(dimensions, &Default::default()));
 
             current_lang_index
-                .add(&embed.embed(&mutations.description)?, mutations_collection.len())
+                .add(
+                    &embed.embed(&mutations.description)?,
+                    mutations_collection.len(),
+                )
                 .map_err(E::msg)?;
             mutations_collection.push(mutations);
         }

@@ -84,7 +84,7 @@ This API parses code into an AST (Abstract Syntax Tree) via tree-sitter and can 
 ``` kdl
 description "describes the mutation collection"
 mutation {
-  expression "some ((beautiful) @adjective) AST expression"
+  expression "(some ((beautiful) @adjective) AST expression) @root"
   substitute {
     literal "hello"
     capture "adjective"
@@ -93,7 +93,7 @@ mutation {
 }
 
 mutation {
-  expression "another"
+  expression "(another) @root"
   substitute {
     literal "multiple mutations work"
     literal "as long as their expression"
@@ -104,13 +104,29 @@ mutation {
 
 - `description`: A textual description of the mutation collection.
 - `mutation`:  Defines individual code changes.
-  - `expression`: Uses tree-sitter to match and capture AST nodes with `@` prefixes, The special `@root` node is reserved for the entire expression.
+  - `expression`: Uses tree-sitter to match and capture AST nodes with `@` prefixes,
+  - The special `@root` node must be specify the expression to be replaced.
   - `substitute`:  Constructs the modified code using literals and captured arguments.
 
-See the example mutation collection in `./snippets/v2/go/mutations.kdl`.
+See the example mutation collection in `./snippets/v2/go/filepath-parent.kdl`.
 
 - The API performs a single-pass substitution based on the closest matching mutation.
 - Captured groups are used within the `substitute` block and the mutated code is returned.
+
+> Every capture group must contain the largest atom to be operated on.
+For example: if you wish to operate on elements of an array, capture each identifier inside the array
+
+Correct way: Here the `array` and `identifier` only hints about where the expression `root` lies.
+
+```
+(array (identifier @root))
+```
+
+Incorrect way: Here the root expression matches the block all the array elements inside the braces, not each element.
+
+```
+(array ((identifier)*) @entire-block-capture) @root
+```
 
 **Further reading**
 

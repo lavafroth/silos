@@ -60,12 +60,18 @@ impl LanguageServer for Backend {
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        self.body.lock().await.insert(params.text_document.uri, params.text_document.text);
+        self.body
+            .lock()
+            .await
+            .insert(params.text_document.uri, params.text_document.text);
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         if let Some(body) = params.content_changes.into_iter().next() {
-            self.body.lock().await.insert(params.text_document.uri, body.text);
+            self.body
+                .lock()
+                .await
+                .insert(params.text_document.uri, body.text);
         }
     }
 

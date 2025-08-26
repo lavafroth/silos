@@ -4,7 +4,7 @@ mutation {
 	(call_expression
 		function: (_) @func (#eq? @func "filepath.Base")
 		arguments: (_) @args
-	)
+	) @root
 	"""
 	substitute {
 		literal "filepath.Base(filepath.Dir(filepath.Clean"

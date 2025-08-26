@@ -1,6 +1,6 @@
 [package]
 name = "silos"
-version = "5.2.2"
+version = "6.0.0"
 edition = "2024"
 
 [dependencies]
