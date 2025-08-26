@@ -73,7 +73,7 @@ pub fn from_path<P: AsRef<Path>>(path: P) -> Result<MutationCollection> {
         }
 
         mutations.push(Mutation {
-            expression,
+            expression: expression.to_string(),
             substitute,
         })
     }
@@ -156,8 +156,7 @@ pub fn query<'a>(
     lang: &Language,
     source_bytes: &[u8],
 ) -> Vec<QueryCooked> {
-    let expr = format!("({expr}) @root");
-    let query = Query::new(lang, &expr).unwrap();
+    let query = Query::new(lang, expr).unwrap();
 
     let mut qc = QueryCursor::new();
     let mut query_matches = qc.matches(&query, node, source_bytes);
@@ -194,7 +193,6 @@ pub fn query<'a>(
             if *name == "root" {
                 start = start_pos.unwrap();
                 end = end_pos.unwrap();
-                continue;
             }
             let range = start_pos.unwrap()..end_pos.unwrap();
             //         println!("match range for {name}: {:#?}", range);

@@ -1,10 +1,10 @@
 description "base64 import"
 mutation {
-	expression "import_spec_list ((import_spec)* @imports)"
+	expression "(import_spec_list ((import_spec)* @spec)) @root"
 	substitute {
 		literal "("
 		literal "\n"
-		capture "imports"
+		capture "spec"
 		literal "\n"
 		literal #""base64""#
 		literal "\n"
