@@ -2,90 +2,34 @@ use std::collections::HashMap;
 use std::path::Path;
 use tracing::debug;
 use tree_sitter::{Language, Node, Query, QueryCursor, StreamingIterator};
+use anyhow::Result;
 
-use anyhow::{Result, bail};
-use kdl::KdlDocument;
-
-#[derive(Debug)]
-pub struct Mutation {
-    pub expression: String,
-    pub substitute: Vec<Substitute>,
-}
-
+#[derive(knuffel::Decode, Debug)]
 pub struct MutationCollection {
+    #[knuffel(child, unwrap(argument))]
     pub description: String,
-    pub mutations: Vec<Mutation>,
+    #[knuffel(children)]
+    mutations: Vec<Mutation>,
 }
 
-#[derive(Debug)]
-pub enum Substitute {
-    Literal(String),
-    Capture(String),
+#[derive(knuffel::Decode, Debug)]
+struct Mutation {
+    #[knuffel(child, unwrap(argument))]
+    expression: String,
+    #[knuffel(child, unwrap(children))]
+    substitute: Vec<Substitute>,
+}
+
+#[derive(knuffel::Decode, Debug)]
+enum Substitute {
+    Literal(#[knuffel(argument)] String),
+    Capture(#[knuffel(argument)] String),
 }
 
 pub fn from_path<P: AsRef<Path>>(path: P) -> Result<MutationCollection> {
-    let contents = std::fs::read_to_string(path)?;
-    let doc: KdlDocument = contents.parse()?;
-    let mut mutations = vec![];
-
-    let mut description = None;
-
-    for node in doc.nodes() {
-        let node_name = node.name().value();
-
-        if node_name != "mutation" && node_name != "description" {
-            bail!(
-                "document root must only contain `mutation` or `description` nodes: got {node_name}"
-            );
-        }
-
-        if node_name == "description" {
-            description.replace(
-                node.entry(0)
-                    .unwrap()
-                    .value()
-                    .as_string()
-                    .unwrap()
-                    .to_string(),
-            );
-            continue;
-        }
-
-        let node = node.children().unwrap();
-        let Some(expression) = node.get_arg("expression").and_then(|v| v.as_string()) else {
-            bail!("mutation node must contain an expression");
-        };
-        let Some(substitute) = node.get("substitute") else {
-            bail!("mutation node must contain an substitute");
-        };
-
-        let children = substitute.children().unwrap().nodes();
-        let mut substitute = vec![];
-        for child in children {
-            let attrib = child.entry(0).unwrap().value().as_string().unwrap();
-            let substitutor = match child.name().value() {
-                "literal" => Substitute::Literal(attrib.to_string()),
-                "capture" => Substitute::Capture(attrib.to_string()),
-                _ => unreachable!(),
-            };
-
-            substitute.push(substitutor);
-        }
-
-        mutations.push(Mutation {
-            expression: expression.to_string(),
-            substitute,
-        })
-    }
-
-    let Some(description) = description else {
-        bail!("mutation collection contains no `description`");
-    };
-
-    Ok(MutationCollection {
-        description,
-        mutations,
-    })
+    let contents = std::fs::read_to_string(&path)?;
+    let val = knuffel::parse(path.as_ref().to_str().unwrap(), &contents)?;
+    Ok(val)
 }
 
 pub fn apply(

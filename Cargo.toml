@@ -25,3 +25,4 @@ tokio = { version = "1.45.1", features = ["io-std", "macros", "rt", "rt-multi-th
 tower-lsp = "0.20.0"
 tree-sitter-javascript = "0.23.1"
 tree-sitter-cpp = "0.23.4"
+knuffel = "3.2.0"
