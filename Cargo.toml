@@ -23,5 +23,5 @@ tree-sitter-go = "0.23.4"
 tree-sitter-rust = "0.24.0"
 tokio = { version = "1.45.1", features = ["io-std", "macros", "rt", "rt-multi-thread"] }
 tower-lsp = "0.20.0"
-tree-sitter-javascript = "0.23.1"
+tree-sitter-javascript = "0.25.0"
 tree-sitter-cpp = "0.23.4"
