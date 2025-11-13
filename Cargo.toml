@@ -13,7 +13,7 @@ derive_more = { version = "2.0.1", features = ["display", "error"] }
 hf-hub = "0.4.2"
 hora = "0.1.1"
 kdl = "6.3.4"
-serde_json = "1.0.140"
+serde_json = "1.0.145"
 tokenizers = "0.21.4"
 tracing = "0.1.41"
 tracing-subscriber = "0.3.20"
