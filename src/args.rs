@@ -38,12 +38,21 @@ pub struct ShowCaptures {
     pub expression: String,
 }
 
+#[derive(Args, Debug)]
+pub struct DryRun {
+    pub path: PathBuf,
+    pub edit_file: PathBuf,
+}
+
 #[derive(Subcommand, Debug)]
 pub enum Ast {
     /// Dump the S expression for a given source file
     DumpExpression(DumpExpression),
     /// Show what parts of a source file gets captured by an S expression
     ShowCaptures(ShowCaptures),
+
+    /// Test your edit snippets on a sample file
+    DryRun(DryRun),
 }
 
 #[derive(Subcommand, Debug)]

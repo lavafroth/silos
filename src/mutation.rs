@@ -179,24 +179,23 @@ pub fn query<'a>(
             let nodes = matcha.nodes_for_capture_index(ix.try_into().unwrap());
             let mut start_pos = None;
             let mut end_pos = None;
-            //         println!("matches for {name}");
+            debug!("matches for {name}");
             for node in nodes {
-                if start_pos.is_none() {
-                    start_pos.replace(node.start_byte());
-                }
+                start_pos.get_or_insert(node.start_byte());
                 end_pos.replace(node.end_byte());
-                //             println!("hit {node:#?}");
+                debug!("hit {node:#?}");
             }
-            if start_pos.or(end_pos).is_none() {
+
+            let (Some(start_pos), Some(end_pos)) = (start_pos, end_pos) else {
                 continue;
-            }
+            };
+
             if *name == "root" {
-                start = start_pos.unwrap();
-                end = end_pos.unwrap();
+                start = start_pos;
+                end = end_pos;
             }
-            let range = start_pos.unwrap()..end_pos.unwrap();
-            //         println!("match range for {name}: {:#?}", range);
-            let text_bytes = &source_bytes[range];
+
+            let text_bytes = &source_bytes[start_pos..end_pos];
             let text = std::str::from_utf8(text_bytes).unwrap();
             //         println!("text: {text}");
             capture_cooked.insert(name.to_string(), text.to_string());

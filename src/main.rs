@@ -26,21 +26,27 @@ async fn main() -> Result<()> {
                     println!("{}", dump_expression(&source_file.path)?);
                 }
                 args::Ast::ShowCaptures(show_captures) => {
-                    let source = std::fs::read_to_string(&show_captures.path).unwrap();
-                    let source_bytes = source.as_bytes();
-                    let extension = show_captures.path.extension().unwrap().to_str().unwrap();
-                    let langfn = state::Refactor::get_lang(extension).unwrap();
-                    let mut parser = tree_sitter::Parser::new();
-                    parser.set_language(&langfn).unwrap();
-                    let tree = parser.parse(source_bytes, None).unwrap();
+                    let source_bytes = std::fs::read(&show_captures.path)?;
+                    let langfn = state::lang_from_file_extension(&show_captures.path)?;
+                    let tree = state::parse_into_tree(&source_bytes, &langfn)?;
                     let root_node = tree.root_node();
                     let cooked = mutation::query(
                         root_node,
                         &show_captures.expression,
                         &langfn,
-                        source_bytes,
+                        &source_bytes,
                     );
                     println!("{:#?}", cooked);
+                }
+                args::Ast::DryRun(dry_run) => {
+                    let mutation_collection = mutation::from_path(dry_run.edit_file)?;
+                    let source_bytes = std::fs::read(&dry_run.path)?;
+                    let langfn = state::lang_from_file_extension(&dry_run.path)?;
+                    let tree = state::parse_into_tree(&source_bytes, &langfn)?;
+                    let root_node = tree.root_node();
+                    let cooked =
+                        mutation::apply(langfn, &source_bytes, root_node, &mutation_collection)?;
+                    println!("{cooked}");
                 }
             }
             return Ok(());

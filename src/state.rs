@@ -23,18 +23,6 @@ pub struct Refactor {
 }
 
 impl Refactor {
-    pub fn get_lang(s: &str) -> Result<tree_sitter::Language, Error> {
-        Ok(match s {
-            "go" => tree_sitter_go::LANGUAGE,
-            "c" | "h" => tree_sitter_c::LANGUAGE,
-            "cpp" | "hpp" => tree_sitter_cpp::LANGUAGE,
-            "js" | "ts" => tree_sitter_javascript::LANGUAGE,
-            "rs" => tree_sitter_rust::LANGUAGE,
-            _ => return Err(Error::UnknownLang),
-        }
-        .into())
-    }
-
     pub fn search(
         &self,
         lang: &str,
@@ -42,17 +30,9 @@ impl Refactor {
         body: &str,
         top_k: usize,
     ) -> Result<Vec<String>, Error> {
-        let langfn = Self::get_lang(lang)?;
-        let mut parser = Parser::new();
-        parser
-            .set_language(&langfn)
-            .map_err(|_| Error::UnknownLang)?;
-
-        let source_code = body;
-        let source_bytes = source_code.as_bytes();
-        let tree = parser
-            .parse(source_code, None)
-            .ok_or(Error::SnippetParsing)?;
+        let langfn = lang_from_name(lang)?;
+        let source_bytes = body.as_bytes();
+        let tree = parse_into_tree(source_bytes, &langfn)?;
         let root_node = tree.root_node();
 
         // search for k nearest neighbors
@@ -83,24 +63,45 @@ impl Refactor {
     }
 }
 
-pub fn dump_expression(path: &Path) -> Result<String, Error> {
+pub fn lang_from_name(s: &str) -> Result<tree_sitter::Language, Error> {
+    Ok(match s {
+        "go" => tree_sitter_go::LANGUAGE,
+        "c" | "h" => tree_sitter_c::LANGUAGE,
+        "cpp" | "hpp" => tree_sitter_cpp::LANGUAGE,
+        "js" | "ts" => tree_sitter_javascript::LANGUAGE,
+        "rs" => tree_sitter_rust::LANGUAGE,
+        _ => return Err(Error::UnknownLang),
+    }
+    .into())
+}
+
+pub fn lang_from_file_extension(path: &Path) -> Result<tree_sitter::Language, Error> {
     let Some(lang) = path.extension() else {
         return Err(Error::UnknownLang);
     };
     let lang = lang.to_str().ok_or(Error::UnknownLang)?;
-    let langfn = Refactor::get_lang(lang)?;
+    lang_from_name(lang)
+}
+
+// parses `body` written in the language `langfn` into tree sitter AST
+pub fn parse_into_tree(
+    body: &[u8],
+    langfn: &tree_sitter::Language,
+) -> Result<tree_sitter::Tree, Error> {
     let mut parser = Parser::new();
     parser
-        .set_language(&langfn)
+        .set_language(langfn)
         .map_err(|_| Error::UnknownLang)?;
+    let tree = parser.parse(body, None).ok_or(Error::SnippetParsing)?;
+    Ok(tree)
+}
 
-    let source_code = std::fs::read_to_string(path).map_err(|_| Error::SnippetParsing)?;
-    let source_bytes = source_code.as_bytes();
-    let tree = parser
-        .parse(source_bytes, None)
-        .ok_or(Error::SnippetParsing)?;
-    let root_node = tree.root_node();
-    Ok(root_node.to_sexp().to_string())
+pub fn dump_expression(path: &Path) -> Result<String, Error> {
+    let source_bytes = std::fs::read(path).map_err(|_| Error::SnippetParsing)?;
+
+    let tree = parse_into_tree(&source_bytes, &lang_from_file_extension(path)?)?;
+
+    Ok(tree.root_node().to_sexp().to_string())
 }
 
 pub struct Generate {
