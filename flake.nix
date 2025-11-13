@@ -13,6 +13,7 @@
           packages = with pkgs; [
             stdenv.cc.cc
             pkg-config
+            bacon
           ];
 
           libraries = with pkgs; [
