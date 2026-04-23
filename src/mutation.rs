@@ -94,32 +94,43 @@ pub fn apply(
     root_node: Node<'_>,
     mutations: &MutationCollection,
 ) -> Result<String, anyhow::Error> {
-    let mut split_ats = vec![];
-    let mut query_result_map = HashMap::new();
+    let mut split_positions = vec![];
+    let mut rewrites = HashMap::new();
     for mutation in &mutations.mutations {
         for query_result in query(root_node, mutation.expression.as_str(), &lang, source_bytes) {
             debug!("mutation query expression matched: {query_result:?}");
-            split_ats.push(query_result.start);
-            split_ats.push(query_result.end);
+            split_positions.push(query_result.start);
+            split_positions.push(query_result.end);
 
-            let mut ast_rewrite = String::default();
-            for sub in &mutation.substitute {
-                ast_rewrite.push_str(match sub {
-                    Substitute::Literal(attrib) => attrib,
-                    Substitute::Capture(attrib) => &query_result.captures[attrib],
+            let ast_rewrite: String = mutation
+                .substitute
+                .iter()
+                .map(|substitute| match substitute {
+                    Substitute::Literal(literal) => literal.as_str(),
+                    Substitute::Capture(attrib) => query_result.captures[attrib].as_str(),
                 })
-            }
+                .collect();
             debug!("AST rewritten to {ast_rewrite:?}");
 
-            query_result_map.insert(query_result.start, ast_rewrite);
+            rewrites.insert(query_result.start, ast_rewrite);
         }
     }
-    split_ats.sort();
-    let splits = split_at_indices(source_bytes, &split_ats);
+    split_positions.sort();
+
+    let source_bytes_split = split_positions
+        .into_iter()
+        .chain(std::iter::once(source_bytes.len()))
+        .scan(0, |start, end| {
+            let mutation_split = (*start, &source_bytes[*start..end]);
+            *start = end;
+            Some(mutation_split)
+        });
+
     let mut output = String::default();
-    for (i, split) in splits.indices.iter().zip(splits.values) {
+    for (i, split) in source_bytes_split {
         let split = std::str::from_utf8(split)?;
-        output.push_str(query_result_map.get(i).map(|v| v.as_str()).unwrap_or(split));
+        let after_mutation = rewrites.get(&i).map(|v| v.as_str()).unwrap_or(split);
+        output.push_str(after_mutation);
     }
     Ok(output)
 }
@@ -129,25 +140,6 @@ pub struct QueryCooked {
     captures: HashMap<String, String>,
     end: usize,
     start: usize,
-}
-
-pub struct SplitMap<'a> {
-    values: Vec<&'a [u8]>,
-    indices: Vec<usize>,
-}
-
-fn split_at_indices<'a>(c: &'a [u8], idx: &[usize]) -> SplitMap<'a> {
-    let mut a = 0;
-    let mut values = vec![];
-    let mut indices = vec![a];
-    for &b in idx {
-        values.push(&c[a..b]);
-        a = b;
-        indices.push(a);
-    }
-    values.push(&c[a..]);
-    assert_eq!(values.len(), indices.len());
-    SplitMap { values, indices }
 }
 
 pub fn query<'a>(
