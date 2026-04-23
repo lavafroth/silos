@@ -159,9 +159,8 @@ pub fn query<'a>(
     let mut cooked = vec![];
 
     while let Some(matcha) = query_matches.next() {
-        let mut capture_cooked = HashMap::new();
-        let mut start = 0;
-        let mut end = 0;
+        let mut captures = HashMap::new();
+        let mut root = 0..0;
         if matcha.captures.is_empty() {
             continue;
         }
@@ -183,19 +182,18 @@ pub fn query<'a>(
             };
 
             if *name == "root" {
-                start = start_pos;
-                end = end_pos;
+                root = start_pos..end_pos;
             }
 
             let text_bytes = &source_bytes[start_pos..end_pos];
             let text = std::str::from_utf8(text_bytes).unwrap();
             //         println!("text: {text}");
-            capture_cooked.insert(name.to_string(), text.to_string());
+            captures.insert(name.to_string(), text.to_string());
         }
         cooked.push(QueryCooked {
-            start,
-            end,
-            captures: capture_cooked,
+            start: root.start,
+            end: root.end,
+            captures,
         })
     }
     cooked
