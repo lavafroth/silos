@@ -57,9 +57,9 @@ async fn main() -> Result<()> {
     let (model_id, revision) = args.resolve_model_and_revision();
 
     let embed = embed::Embed::new(args.gpu, &model_id, &revision)?;
-    let mut dict = HashMap::default();
     let dimensions = embed.hidden_size;
 
+    let mut dict = HashMap::default();
     for (language, paths) in sources::rule_files(args.snippets.join("generate"))? {
         for path in paths {
             let current_lang_index = dict
@@ -84,9 +84,7 @@ async fn main() -> Result<()> {
     }
 
     for index in dict.values_mut() {
-        index
-            .build(hora::core::metrics::Metric::Euclidean)
-            .map_err(E::msg)?;
+        index.build(Euclidean).map_err(E::msg)?;
     }
 
     let mut refactor_dict = HashMap::new();
