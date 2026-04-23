@@ -6,7 +6,7 @@ use std::{
 
 pub fn rule_files<P: AsRef<Path>>(path: P) -> io::Result<HashMap<String, Vec<PathBuf>>> {
     let per_language_dirs: Vec<_> = fs::read_dir(path)?
-        .filter_map(|res| res.ok())
+        .filter_map(Result::ok)
         .map(|direntry| direntry.path())
         .filter(|dir| dir.is_dir())
         .collect();
@@ -31,4 +31,3 @@ pub fn rule_files<P: AsRef<Path>>(path: P) -> io::Result<HashMap<String, Vec<Pat
     }
     Ok(basename_to_paths)
 }
-// fn prebuilt_index();
