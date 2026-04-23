@@ -97,21 +97,21 @@ impl LanguageServer for Backend {
         let mut range = params.range;
         let selected_text = string_range_index(body, range);
 
-        let Some(comment) = ParsedAction::new(selected_text) else {
+        let Some(comment) = Action::new(selected_text) else {
             return Ok(None);
         };
 
-        let action_response = match comment.action {
-            Action::Generate => {
+        let action_response = match comment {
+            Action::Generate(description) => {
                 range.start = range.end;
                 self.appstate
-                    .generate(&lang, comment.description, 1)
+                    .generate(&lang, description, 1)
                     .map(|v| v.into_iter().map(|s| format!("{s}\n")).collect())
                     .map_err(|e| e.to_string())
             }
-            Action::Refactor => self
+            Action::Refactor(description) => self
                 .appstate
-                .refactor(&lang, comment.description, selected_text, 1)
+                .refactor(&lang, description, selected_text, 1)
                 .map_err(|e| e.to_string()),
         };
 
@@ -143,36 +143,20 @@ impl LanguageServer for Backend {
     }
 }
 
-pub struct ParsedAction<'a> {
-    action: Action,
-    description: &'a str,
+pub enum Action<'a> {
+    Generate(&'a str),
+    Refactor(&'a str),
 }
 
-pub enum Action {
-    Generate,
-    Refactor,
-}
-
-impl<'a> ParsedAction<'a> {
-    fn new(comment: &'a str) -> Option<ParsedAction<'a>> {
+impl<'a> Action<'a> {
+    fn new(comment: &'a str) -> Option<Action<'a>> {
         let upto_newline = match comment.rsplit_once("\n") {
             Some((upto_newline, _discard)) => upto_newline,
             None => comment,
         };
-        let maybe_generate =
-            upto_newline
-                .split_once("generate: ")
-                .map(|(_discard, description)| ParsedAction {
-                    action: Action::Generate,
-                    description,
-                });
-        let maybe_refactor =
-            upto_newline
-                .split_once("refactor: ")
-                .map(|(_discard, description)| ParsedAction {
-                    action: Action::Refactor,
-                    description,
-                });
+        use Action::*;
+        let maybe_generate = upto_newline.strip_prefix("generate: ").map(Generate);
+        let maybe_refactor = upto_newline.strip_prefix("refactor: ").map(Refactor);
         maybe_generate.or(maybe_refactor)
     }
 }
