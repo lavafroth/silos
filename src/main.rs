@@ -110,14 +110,14 @@ async fn main() -> Result<()> {
         index.build(Euclidean).map_err(E::msg)?;
     }
 
-    let appstate = State::new(
-        embed,
-        state::Generate { dict },
-        state::Refactor {
+    let appstate = State {
+        embeddings: embed,
+        generate: state::Generate { dict },
+        refactor: state::Refactor {
             dict: refactor_dict,
             mutations_collection,
         },
-    );
+    };
 
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();

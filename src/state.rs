@@ -118,25 +118,19 @@ impl Generate {
 }
 
 pub struct State {
-    embed: crate::embed::Embed,
-    generate: Generate,
-    refactor: Refactor,
+    pub embeddings: crate::embed::Embed,
+    pub generate: Generate,
+    pub refactor: Refactor,
 }
 
 impl State {
-    pub fn new(embed: crate::embed::Embed, generate: Generate, refactor: Refactor) -> Self {
-        Self {
-            embed,
-            generate,
-            refactor,
-        }
+    pub fn embed(&self, prompt: &str) -> Result<Vec<f32>, Error> {
+        self.embeddings
+            .embed(prompt)
+            .map_err(|_| Error::EmbedFailed)
     }
     pub fn generate(&self, lang: &str, prompt: &str, top_k: usize) -> Result<Vec<String>, Error> {
-        let Ok(target) = self.embed.embed(prompt) else {
-            return Err(Error::EmbedFailed);
-        };
-
-        self.generate.search(lang, &target, top_k)
+        self.generate.search(lang, &self.embed(prompt)?, top_k)
     }
 
     pub fn refactor(
@@ -146,10 +140,7 @@ impl State {
         body: &str,
         top_k: usize,
     ) -> Result<Vec<String>, Error> {
-        let Ok(target) = self.embed.embed(prompt) else {
-            return Err(Error::EmbedFailed);
-        };
-
-        self.refactor.search(lang, &target, body, top_k)
+        self.refactor
+            .search(lang, &self.embed(prompt)?, body, top_k)
     }
 }
