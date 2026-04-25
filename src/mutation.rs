@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 use tracing::debug;
-use tree_sitter::{Language, Node, Query, QueryCursor, StreamingIterator};
+use tree_sitter::{Language, Node, QueryCursor, StreamingIterator};
 
 use anyhow::{Result, bail};
 use kdl::KdlDocument;
@@ -121,9 +121,9 @@ pub fn apply(
         .into_iter()
         .chain(std::iter::once(source_bytes.len()))
         .scan(0, |start, end| {
-            let mutation_split = (*start, &source_bytes[*start..end]);
+            let split = (*start, &source_bytes[*start..end]);
             *start = end;
-            Some(mutation_split)
+            Some(split)
         });
 
     let mut output = String::default();
@@ -136,7 +136,7 @@ pub fn apply(
 }
 
 #[derive(Debug)]
-pub struct QueryCooked {
+pub struct Query {
     captures: HashMap<String, String>,
     end: usize,
     start: usize,
@@ -147,8 +147,8 @@ pub fn query<'a>(
     expr: &'a str,
     lang: &Language,
     source_bytes: &[u8],
-) -> Vec<QueryCooked> {
-    let query = Query::new(lang, expr).unwrap();
+) -> Vec<Query> {
+    let query = tree_sitter::Query::new(lang, expr).unwrap();
 
     let mut qc = QueryCursor::new();
     let mut query_matches = qc.matches(&query, node, source_bytes);
@@ -158,16 +158,16 @@ pub fn query<'a>(
 
     let mut cooked = vec![];
 
-    while let Some(matcha) = query_matches.next() {
+    while let Some(query_match) = query_matches.next() {
         let mut captures = HashMap::new();
         let mut root = 0..0;
-        if matcha.captures.is_empty() {
+        if query_match.captures.is_empty() {
             continue;
         }
         //     println!("match {:#?}", matcha.id());
 
         for (ix, name) in capture_names.iter().enumerate() {
-            let nodes = matcha.nodes_for_capture_index(ix.try_into().unwrap());
+            let nodes = query_match.nodes_for_capture_index(ix.try_into().unwrap());
             let mut start_pos = None;
             let mut end_pos = None;
             debug!("matches for {name}");
@@ -187,10 +187,9 @@ pub fn query<'a>(
 
             let text_bytes = &source_bytes[start_pos..end_pos];
             let text = std::str::from_utf8(text_bytes).unwrap();
-            //         println!("text: {text}");
             captures.insert(name.to_string(), text.to_string());
         }
-        cooked.push(QueryCooked {
+        cooked.push(Query {
             start: root.start,
             end: root.end,
             captures,
