@@ -1,10 +1,14 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tower_lsp::lsp_types::*;
-use tower_lsp::{Client, LanguageServer};
+use tower_lsp::lsp_types::{
+    CodeActionOptions, CodeActionParams, CodeActionProviderCapability, CodeActionResponse,
+    DidChangeTextDocumentParams, DidOpenTextDocumentParams, InitializeParams, InitializeResult,
+    MessageType, Range, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, Url,
+};
+use tower_lsp::{Client, LanguageServer, jsonrpc::Result};
 mod action;
-use action::Action;
+mod code_action;
 
 pub struct Backend {
     pub client: Client,
@@ -33,10 +37,7 @@ fn string_range_index(s: &str, r: Range) -> &str {
 
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
-    async fn initialize(
-        &self,
-        _: InitializeParams,
-    ) -> tower_lsp::jsonrpc::Result<InitializeResult> {
+    async fn initialize(&self, _: InitializeParams) -> Result<InitializeResult> {
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
@@ -51,13 +52,7 @@ impl LanguageServer for Backend {
         })
     }
 
-    async fn initialized(&self, _: InitializedParams) {
-        self.client
-            .log_message(MessageType::INFO, "server initialized!")
-            .await;
-    }
-
-    async fn shutdown(&self) -> tower_lsp::jsonrpc::Result<()> {
+    async fn shutdown(&self) -> Result<()> {
         Ok(())
     }
 
@@ -77,71 +72,8 @@ impl LanguageServer for Backend {
         }
     }
 
-    async fn code_action(
-        &self,
-        params: CodeActionParams,
-    ) -> tower_lsp::jsonrpc::Result<Option<CodeActionResponse>> {
-        let uri = params.text_document.uri;
-        let Some(lang) = url_extension(&uri) else {
-            self.client
-                .log_message(
-                    MessageType::ERROR,
-                    "unable to determine filetype, file has no extension",
-                )
-                .await;
-            return Ok(None);
-        };
-
-        let body_locked = self.body.lock().await;
-        let Some(body) = body_locked.get(&uri) else {
-            return Ok(None);
-        };
-        let mut range = params.range;
-        let selected_text = string_range_index(body, range);
-
-        let Some(comment) = Action::new(selected_text) else {
-            return Ok(None);
-        };
-
-        let action_response = match comment {
-            Action::Generate(description) => {
-                range.start = range.end;
-                self.appstate
-                    .generate(&lang, description, 1)
-                    .map(|v| v.into_iter().map(|s| format!("{s}\n")).collect())
-                    .map_err(|e| e.to_string())
-            }
-            Action::Refactor(description) => self
-                .appstate
-                .refactor(&lang, description, selected_text, 1)
-                .map_err(|e| e.to_string()),
-        };
-
-        let closest_matches = match action_response {
-            Ok(v) => v,
-            Err(e) => {
-                self.client
-                    .log_message(MessageType::ERROR, e.to_string())
-                    .await;
-                return Ok(None);
-            }
-        };
-
-        let Some(new_text) = closest_matches.into_iter().next() else {
-            return Ok(None);
-        };
-        let text_edit = TextEdit { range, new_text };
-        let changes: HashMap<Url, _> = [(uri, vec![text_edit])].into_iter().collect();
-        let edit = Some(WorkspaceEdit {
-            changes: Some(changes),
-            ..Default::default()
-        });
-        let actions = vec![CodeActionOrCommand::CodeAction(CodeAction {
-            title: "ask silos".to_string(),
-            edit,
-            ..Default::default()
-        })];
-        Ok(Some(actions))
+    async fn code_action(&self, params: CodeActionParams) -> Result<Option<CodeActionResponse>> {
+        Ok(self.code_action_internal(params).await)
     }
 }
 
