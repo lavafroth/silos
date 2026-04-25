@@ -3,6 +3,8 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer};
+mod action;
+use action::Action;
 
 pub struct Backend {
     pub client: Client,
@@ -140,24 +142,6 @@ impl LanguageServer for Backend {
             ..Default::default()
         })];
         Ok(Some(actions))
-    }
-}
-
-pub enum Action<'a> {
-    Generate(&'a str),
-    Refactor(&'a str),
-}
-
-impl<'a> Action<'a> {
-    fn new(comment: &'a str) -> Option<Action<'a>> {
-        let upto_newline = match comment.rsplit_once("\n") {
-            Some((upto_newline, _discard)) => upto_newline,
-            None => comment,
-        };
-        use Action::*;
-        let maybe_generate = upto_newline.strip_prefix("generate: ").map(Generate);
-        let maybe_refactor = upto_newline.strip_prefix("refactor: ").map(Refactor);
-        maybe_generate.or(maybe_refactor)
     }
 }
 
